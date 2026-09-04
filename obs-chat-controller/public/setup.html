@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Setup — OBS Chat Controller</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e37;
+    --text: #e6e8eb;
+    --muted: #8b93a1;
+    --accent: #9147ff;
+    --green: #3fb950;
+    --red: #f85149;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+
+  .top-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  h3 { font-size: 12px; font-weight: 600; margin: 16px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  a.nav-link { color: var(--accent); text-decoration: none; font-size: 13px; }
+  a.nav-link:hover { text-decoration: underline; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .status-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #1f232c;
+    border: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+  .dot.on { background: var(--green); }
+  .dot.pending { background: #d29922; }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #1f232c;
+    color: var(--text);
+    padding: 10px 14px;
+  }
+
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    background: #0f1115;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 8px;
+    font: inherit;
+  }
+
+  input[type="color"] {
+    width: 40px;
+    height: 30px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; flex-wrap: wrap; gap: 8px; }
+
+  #obsSaveStatus, #autoSaveStatus { font-size: 13px; color: var(--muted); }
+
+  .field-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+  .field.grow { flex: 1; }
+  .field label { font-size: 12px; color: var(--muted); }
+
+  .scene-checklist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .scene-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: #1f232c;
+  }
+
+  #autoPreview { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="top-row">
+    <h1>Setup</h1>
+    <a class="nav-link" href="/">&larr; Back to controller</a>
+  </div>
+
+  <div class="panel">
+    <h2>OBS connection</h2>
+    <div class="status-row">
+      <span class="pill"><span id="obsDot" class="dot"></span><span id="obsLabel">Checking...</span></span>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="obsUrlInput">WebSocket URL</label>
+        <input type="text" id="obsUrlInput" placeholder="ws://127.0.0.1:4455">
+      </div>
+      <div class="field">
+        <label for="obsPasswordInput">Password</label>
+        <input type="text" id="obsPasswordInput" placeholder="leave blank to keep current password">
+      </div>
+      <button id="obsSaveBtn" class="primary">Save &amp; connect</button>
+      <span id="obsSaveStatus"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Twitch connection</h2>
+    <div class="status-row">
+      <span class="pill"><span id="authDot" class="dot"></span><span id="authLabel">Checking...</span></span>
+      <button id="connectBtn">Connect to Twitch</button>
+    </div>
+    <p style="font-size: 13px; color: var(--muted); margin: 12px 0 0;">App credentials from <a class="nav-link" href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>. The redirect URI here must exactly match one registered on the app.</p>
+    <div class="field-row">
+      <div class="field">
+        <label for="twitchClientIdInput">Client ID</label>
+        <input type="text" id="twitchClientIdInput" placeholder="your_client_id">
+      </div>
+      <div class="field">
+        <label for="twitchClientSecretInput">Client secret</label>
+        <input type="text" id="twitchClientSecretInput" placeholder="leave blank to keep current secret">
+      </div>
+      <div class="field">
+        <label for="twitchChannelInput">Channel name</label>
+        <input type="text" id="twitchChannelInput" placeholder="your_channel_name">
+      </div>
+      <div class="field">
+        <label for="twitchRedirectUriInput">Redirect URI</label>
+        <input type="text" id="twitchRedirectUriInput" placeholder="http://localhost:3000/callback">
+      </div>
+      <button id="twitchSaveBtn" class="primary">Save</button>
+      <span id="twitchSaveStatus"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Camera rewards</h2>
+    <p style="font-size: 13px; color: var(--muted); margin: 0 0 4px;">One reward is created per included OBS scene automatically.</p>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="autoCost">Cost per camera</label>
+        <input type="number" min="1" id="autoCost">
+      </div>
+      <div class="field">
+        <label for="autoCooldown">Cooldown (s)</label>
+        <input type="number" min="0" id="autoCooldown">
+      </div>
+      <div class="field">
+        <label for="autoColor">Color</label>
+        <input type="color" id="autoColor">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="autoTitleTemplate">Reward title ({scene} is replaced with the scene name)</label>
+        <input type="text" id="autoTitleTemplate" placeholder="Switch to {scene}">
+      </div>
+      <div class="field grow">
+        <label for="autoPromptTemplate">Reward prompt</label>
+        <input type="text" id="autoPromptTemplate" placeholder="Switch the stream camera to {scene}">
+      </div>
+    </div>
+
+    <h3>Scenes to include</h3>
+    <div class="scene-checklist" id="sceneChecklist"></div>
+
+    <div class="toolbar">
+      <span id="autoPreview"></span>
+      <div>
+        <button id="autoSaveBtn" class="primary">Save</button>
+        <span id="autoSaveStatus"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Random transition reward</h2>
+    <p style="font-size: 13px; color: var(--muted); margin: 0 0 4px;">A single extra reward that switches to a random included camera using a random OBS scene transition. Needs at least 2 included scenes above to appear on Twitch.</p>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="transitionEnabled">Enabled</label>
+        <input type="checkbox" id="transitionEnabled" style="width: auto;">
+      </div>
+      <div class="field">
+        <label for="transitionCost">Cost</label>
+        <input type="number" min="1" id="transitionCost">
+      </div>
+      <div class="field">
+        <label for="transitionCooldown">Cooldown (s)</label>
+        <input type="number" min="0" id="transitionCooldown">
+      </div>
+      <div class="field">
+        <label for="transitionColor">Color</label>
+        <input type="color" id="transitionColor">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="transitionTitle">Reward title</label>
+        <input type="text" id="transitionTitle" placeholder="Random Transition Cam Switch">
+      </div>
+      <div class="field grow">
+        <label for="transitionPrompt">Reward prompt</label>
+        <input type="text" id="transitionPrompt" placeholder="Switch camera using a random OBS transition">
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <span></span>
+      <div>
+        <button id="transitionSaveBtn" class="primary">Save</button>
+        <span id="transitionSaveStatus"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Insta360 Link presets</h2>
+    <p style="font-size: 13px; color: var(--muted); margin: 0 0 4px;">
+      Triggers a preset by simulating the global hotkey it's bound to in the official
+      <strong>Insta360 Link Controller</strong> app — that app must be running with the hotkey configured
+      for each preset (its settings screen lets you assign one). Format hotkeys like <code>ctrl+alt+1</code>
+      (modifiers: <code>ctrl</code>, <code>alt</code>, <code>shift</code>, <code>win</code>; key: a letter, digit, or <code>f1</code>-<code>f24</code>).
+    </p>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="insta360Enabled">Enabled</label>
+        <input type="checkbox" id="insta360Enabled" style="width: auto;">
+      </div>
+      <div class="field">
+        <label for="insta360Cost">Cost per preset</label>
+        <input type="number" min="1" id="insta360Cost">
+      </div>
+      <div class="field">
+        <label for="insta360Cooldown">Cooldown (s)</label>
+        <input type="number" min="0" id="insta360Cooldown">
+      </div>
+      <div class="field">
+        <label for="insta360Color">Color</label>
+        <input type="color" id="insta360Color">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="insta360TitleTemplate">Reward title ({preset} is replaced with the preset name)</label>
+        <input type="text" id="insta360TitleTemplate" placeholder="Camera preset: {preset}">
+      </div>
+      <div class="field grow">
+        <label for="insta360PromptTemplate">Reward prompt</label>
+        <input type="text" id="insta360PromptTemplate" placeholder="Move the Insta360 Link camera to the {preset} preset">
+      </div>
+    </div>
+
+    <h3>Presets</h3>
+    <div id="insta360PresetList"></div>
+    <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap;">
+      <button id="insta360AddPresetBtn" type="button">+ Add preset</button>
+      <button id="insta360SyncBtn" type="button">Sync hotkeys from Insta360 Link Controller</button>
+      <span id="insta360SyncStatus" style="font-size: 13px; color: var(--muted);"></span>
+    </div>
+
+    <div class="toolbar">
+      <span></span>
+      <div>
+        <button id="insta360SaveBtn" class="primary">Save</button>
+        <span id="insta360SaveStatus"></span>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const authDot = document.getElementById("authDot");
+  const authLabel = document.getElementById("authLabel");
+  const connectBtn = document.getElementById("connectBtn");
+  const obsDot = document.getElementById("obsDot");
+  const obsLabel = document.getElementById("obsLabel");
+  const obsUrlInput = document.getElementById("obsUrlInput");
+  const obsPasswordInput = document.getElementById("obsPasswordInput");
+  const obsSaveBtn = document.getElementById("obsSaveBtn");
+  const obsSaveStatus = document.getElementById("obsSaveStatus");
+  const twitchClientIdInput = document.getElementById("twitchClientIdInput");
+  const twitchClientSecretInput = document.getElementById("twitchClientSecretInput");
+  const twitchChannelInput = document.getElementById("twitchChannelInput");
+  const twitchRedirectUriInput = document.getElementById("twitchRedirectUriInput");
+  const twitchSaveBtn = document.getElementById("twitchSaveBtn");
+  const twitchSaveStatus = document.getElementById("twitchSaveStatus");
+  const autoCost = document.getElementById("autoCost");
+  const autoCooldown = document.getElementById("autoCooldown");
+  const autoColor = document.getElementById("autoColor");
+  const autoTitleTemplate = document.getElementById("autoTitleTemplate");
+  const autoPromptTemplate = document.getElementById("autoPromptTemplate");
+  const sceneChecklist = document.getElementById("sceneChecklist");
+  const autoSaveBtn = document.getElementById("autoSaveBtn");
+  const autoSaveStatus = document.getElementById("autoSaveStatus");
+  const autoPreview = document.getElementById("autoPreview");
+  const transitionEnabled = document.getElementById("transitionEnabled");
+  const transitionCost = document.getElementById("transitionCost");
+  const transitionCooldown = document.getElementById("transitionCooldown");
+  const transitionColor = document.getElementById("transitionColor");
+  const transitionTitle = document.getElementById("transitionTitle");
+  const transitionPrompt = document.getElementById("transitionPrompt");
+  const transitionSaveBtn = document.getElementById("transitionSaveBtn");
+  const transitionSaveStatus = document.getElementById("transitionSaveStatus");
+  const insta360Enabled = document.getElementById("insta360Enabled");
+  const insta360Cost = document.getElementById("insta360Cost");
+  const insta360Cooldown = document.getElementById("insta360Cooldown");
+  const insta360Color = document.getElementById("insta360Color");
+  const insta360TitleTemplate = document.getElementById("insta360TitleTemplate");
+  const insta360PromptTemplate = document.getElementById("insta360PromptTemplate");
+  const insta360PresetList = document.getElementById("insta360PresetList");
+  const insta360AddPresetBtn = document.getElementById("insta360AddPresetBtn");
+  const insta360SyncBtn = document.getElementById("insta360SyncBtn");
+  const insta360SyncStatus = document.getElementById("insta360SyncStatus");
+  const insta360SaveBtn = document.getElementById("insta360SaveBtn");
+  const insta360SaveStatus = document.getElementById("insta360SaveStatus");
+
+  let obsScenes = [];
+
+  function renderSceneChecklist(excludedScenes) {
+    const excluded = new Set(excludedScenes);
+    sceneChecklist.innerHTML = "";
+    if (obsScenes.length === 0) {
+      sceneChecklist.innerHTML = '<span style="color: var(--muted); font-size: 13px;">No OBS scenes detected yet.</span>';
+      return;
+    }
+    for (const scene of obsScenes) {
+      const label = document.createElement("label");
+      label.className = "scene-chip";
+      label.innerHTML = `<input type="checkbox" ${excluded.has(scene) ? "" : "checked"}> ${scene}`;
+      label.querySelector("input").addEventListener("change", updatePreview);
+      label.dataset.scene = scene;
+      sceneChecklist.appendChild(label);
+    }
+  }
+
+  function collectExcludedScenes() {
+    const excluded = [];
+    for (const chip of sceneChecklist.querySelectorAll(".scene-chip")) {
+      if (!chip.querySelector("input").checked) excluded.push(chip.dataset.scene);
+    }
+    return excluded;
+  }
+
+  function collectAutoSettings() {
+    return {
+      cost: Number(autoCost.value) || 1,
+      globalCooldownSeconds: Number(autoCooldown.value) || 0,
+      backgroundColor: autoColor.value,
+      titleTemplate: autoTitleTemplate.value || "Switch to {scene}",
+      promptTemplate: autoPromptTemplate.value || "Switch the stream camera to {scene}",
+      excludedScenes: collectExcludedScenes(),
+    };
+  }
+
+  function fillAutoForm(auto) {
+    autoCost.value = auto.cost;
+    autoCooldown.value = auto.globalCooldownSeconds;
+    autoColor.value = auto.backgroundColor;
+    autoTitleTemplate.value = auto.titleTemplate;
+    autoPromptTemplate.value = auto.promptTemplate;
+  }
+
+  function updatePreview() {
+    const settings = collectAutoSettings();
+    const excluded = new Set(settings.excludedScenes);
+    const included = obsScenes.filter((s) => !excluded.has(s));
+    if (included.length === 0) {
+      autoPreview.textContent = "No cameras will be created.";
+      return;
+    }
+    const titles = included.map((s) => settings.titleTemplate.replace("{scene}", s));
+    autoPreview.textContent = `${included.length} camera reward(s): ${titles.join(", ")}`;
+  }
+
+  function applyObsStatus(status) {
+    obsDot.classList.toggle("on", status.obsConnected);
+    obsLabel.textContent = status.obsConnected ? "Connected" : "Not connected";
+  }
+
+  function applyStatus(status) {
+    applyObsStatus(status);
+    if (status.twitchAuthorized) {
+      authDot.classList.remove("pending");
+      authDot.classList.toggle("on", status.twitchConnected);
+      authLabel.textContent = status.twitchConnected ? "Connected" : "Authorized, reconnecting...";
+      connectBtn.disabled = true;
+      connectBtn.textContent = "Connected to Twitch";
+    } else if (!status.twitchConfigured) {
+      authDot.classList.remove("on", "pending");
+      authLabel.textContent = "Enter credentials below";
+      connectBtn.disabled = true;
+      connectBtn.textContent = "Connect to Twitch";
+    } else {
+      authDot.classList.remove("on");
+      authLabel.textContent = "Not connected";
+      connectBtn.disabled = false;
+      connectBtn.textContent = "Connect to Twitch";
+    }
+  }
+
+  function applyTwitchConfig(twitchConfig) {
+    twitchClientIdInput.value = twitchConfig.clientId || "";
+    twitchChannelInput.value = twitchConfig.channel || "";
+    twitchRedirectUriInput.value = twitchConfig.redirectUri || "";
+  }
+
+  function collectTransitionSettings() {
+    return {
+      enabled: transitionEnabled.checked,
+      cost: Number(transitionCost.value) || 1,
+      globalCooldownSeconds: Number(transitionCooldown.value) || 0,
+      backgroundColor: transitionColor.value,
+      title: transitionTitle.value || "Random Transition Cam Switch",
+      prompt: transitionPrompt.value || "Switch camera using a random OBS transition",
+    };
+  }
+
+  function fillTransitionForm(transition) {
+    transitionEnabled.checked = transition.enabled;
+    transitionCost.value = transition.cost;
+    transitionCooldown.value = transition.globalCooldownSeconds;
+    transitionColor.value = transition.backgroundColor;
+    transitionTitle.value = transition.title;
+    transitionPrompt.value = transition.prompt;
+  }
+
+  function addPresetRow(preset) {
+    preset = preset || { name: "", hotkey: "" };
+    const row = document.createElement("div");
+    row.className = "field-row preset-row";
+
+    const nameField = document.createElement("div");
+    nameField.className = "field";
+    const nameLabel = document.createElement("label");
+    nameLabel.textContent = "Preset name";
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "preset-name";
+    nameInput.placeholder = "Wide";
+    nameInput.value = preset.name;
+    nameField.append(nameLabel, nameInput);
+
+    const hotkeyField = document.createElement("div");
+    hotkeyField.className = "field";
+    const hotkeyLabel = document.createElement("label");
+    hotkeyLabel.textContent = "Hotkey";
+    const hotkeyInput = document.createElement("input");
+    hotkeyInput.type = "text";
+    hotkeyInput.className = "preset-hotkey";
+    hotkeyInput.placeholder = "ctrl+alt+1";
+    hotkeyInput.value = preset.hotkey;
+    hotkeyField.append(hotkeyLabel, hotkeyInput);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => row.remove());
+
+    row.append(nameField, hotkeyField, removeBtn);
+    insta360PresetList.appendChild(row);
+  }
+
+  function renderPresetList(presets) {
+    insta360PresetList.innerHTML = "";
+    for (const preset of presets) addPresetRow(preset);
+  }
+
+  function collectPresets() {
+    const presets = [];
+    for (const row of insta360PresetList.querySelectorAll(".preset-row")) {
+      const name = row.querySelector(".preset-name").value.trim();
+      const hotkey = row.querySelector(".preset-hotkey").value.trim();
+      if (name && hotkey) presets.push({ name, hotkey });
+    }
+    return presets;
+  }
+
+  function collectInsta360Settings() {
+    return {
+      enabled: insta360Enabled.checked,
+      cost: Number(insta360Cost.value) || 1,
+      globalCooldownSeconds: Number(insta360Cooldown.value) || 0,
+      backgroundColor: insta360Color.value,
+      titleTemplate: insta360TitleTemplate.value || "Camera preset: {preset}",
+      promptTemplate: insta360PromptTemplate.value || "Move the Insta360 Link camera to the {preset} preset",
+      presets: collectPresets(),
+    };
+  }
+
+  function mergeDiscoveredHotkeys(result) {
+    if (!result.found) {
+      insta360SyncStatus.textContent = "Insta360 Link Controller isn't installed (or its config wasn't found) on this machine.";
+      return;
+    }
+    if (result.hotkeys.length === 0) {
+      insta360SyncStatus.textContent = "No hotkeys are configured in Insta360 Link Controller yet — bind one in its Shortcuts settings, then sync again.";
+      return;
+    }
+
+    const existingCombos = new Set(collectPresets().map((p) => p.hotkey));
+    let added = 0;
+    for (const { key, hotkey } of result.hotkeys) {
+      if (existingCombos.has(hotkey)) continue;
+      addPresetRow({ name: key, hotkey });
+      existingCombos.add(hotkey);
+      added++;
+    }
+
+    insta360SyncStatus.textContent =
+      added > 0
+        ? `Added ${added} hotkey(s) below — verify each one actually moves the camera (they may not be the real preset shortcut), name them, then Save.`
+        : "All configured hotkeys are already in your preset list.";
+  }
+
+  function fillInsta360Form(insta360) {
+    insta360Enabled.checked = insta360.enabled;
+    insta360Cost.value = insta360.cost;
+    insta360Cooldown.value = insta360.globalCooldownSeconds;
+    insta360Color.value = insta360.backgroundColor;
+    insta360TitleTemplate.value = insta360.titleTemplate;
+    insta360PromptTemplate.value = insta360.promptTemplate;
+    renderPresetList(insta360.presets);
+  }
+
+  function applyRewardsConfig(rewardsConfig) {
+    fillAutoForm(rewardsConfig.auto);
+    renderSceneChecklist(rewardsConfig.auto.excludedScenes);
+    updatePreview();
+    fillTransitionForm(rewardsConfig.transition);
+    fillInsta360Form(rewardsConfig.insta360);
+  }
+
+  let ws;
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}`);
+
+    ws.addEventListener("message", (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "init") {
+        applyStatus(msg.status);
+        obsUrlInput.value = msg.obsUrl || "";
+        obsScenes = msg.obsScenes || [];
+        applyTwitchConfig(msg.twitchConfig || {});
+        applyRewardsConfig(msg.rewardsConfig);
+      } else if (msg.type === "status") {
+        applyStatus(msg.status);
+      } else if (msg.type === "rewardsUpdate") {
+        applyRewardsConfig(msg.rewardsConfig);
+      } else if (msg.type === "obsScenes") {
+        obsScenes = msg.scenes || [];
+        renderSceneChecklist(collectExcludedScenes());
+        updatePreview();
+      } else if (msg.type === "obsConfig") {
+        obsUrlInput.value = msg.url || "";
+      } else if (msg.type === "twitchConfig") {
+        applyTwitchConfig(msg.twitchConfig || {});
+      } else if (msg.type === "twitchAuthUrl") {
+        window.open(msg.url, "_blank");
+      } else if (msg.type === "insta360Hotkeys") {
+        mergeDiscoveredHotkeys(msg);
+      }
+    });
+
+    ws.addEventListener("close", () => setTimeout(connect, 2000));
+  }
+
+  function send(message) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+  }
+
+  connectBtn.addEventListener("click", () => send({ type: "connectTwitch" }));
+
+  for (const input of [autoCost, autoCooldown, autoTitleTemplate, autoPromptTemplate]) {
+    input.addEventListener("input", updatePreview);
+  }
+
+  obsSaveBtn.addEventListener("click", () => {
+    send({
+      type: "saveObsConfig",
+      url: obsUrlInput.value.trim(),
+      password: obsPasswordInput.value,
+    });
+    obsPasswordInput.value = "";
+    obsSaveStatus.textContent = "Saving...";
+    setTimeout(() => (obsSaveStatus.textContent = ""), 2000);
+  });
+
+  twitchSaveBtn.addEventListener("click", () => {
+    send({
+      type: "saveTwitchConfig",
+      clientId: twitchClientIdInput.value.trim(),
+      clientSecret: twitchClientSecretInput.value,
+      channel: twitchChannelInput.value.trim(),
+      redirectUri: twitchRedirectUriInput.value.trim(),
+    });
+    twitchClientSecretInput.value = "";
+    twitchSaveStatus.textContent = "Saved";
+    setTimeout(() => (twitchSaveStatus.textContent = ""), 2000);
+  });
+
+  autoSaveBtn.addEventListener("click", () => {
+    send({ type: "saveAutoSettings", settings: collectAutoSettings() });
+    autoSaveStatus.textContent = "Saved";
+    setTimeout(() => (autoSaveStatus.textContent = ""), 2000);
+  });
+
+  transitionSaveBtn.addEventListener("click", () => {
+    send({ type: "saveTransitionSettings", settings: collectTransitionSettings() });
+    transitionSaveStatus.textContent = "Saved";
+    setTimeout(() => (transitionSaveStatus.textContent = ""), 2000);
+  });
+
+  insta360AddPresetBtn.addEventListener("click", () => addPresetRow());
+
+  insta360SyncBtn.addEventListener("click", () => {
+    insta360SyncStatus.textContent = "Scanning...";
+    send({ type: "requestInsta360Hotkeys" });
+  });
+
+  insta360SaveBtn.addEventListener("click", () => {
+    send({ type: "saveInsta360Settings", settings: collectInsta360Settings() });
+    insta360SaveStatus.textContent = "Saved";
+    setTimeout(() => (insta360SaveStatus.textContent = ""), 2000);
+  });
+
+  connect();
+</script>
+</body>
+</html>

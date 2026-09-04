@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>OBS Chat Controller</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e37;
+    --text: #e6e8eb;
+    --muted: #8b93a1;
+    --accent: #9147ff;
+    --green: #3fb950;
+    --red: #f85149;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+
+  .top-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  a.nav-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 13px;
+  }
+
+  a.nav-link:hover { text-decoration: underline; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .status-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #1f232c;
+    border: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+
+  .dot.on { background: var(--green); }
+
+  .scene-label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .scene-label strong {
+    color: var(--text);
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #1f232c;
+    color: var(--text);
+    padding: 10px 14px;
+  }
+
+  button:hover { border-color: var(--accent); }
+
+  button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  #pauseBtn.paused {
+    background: var(--red);
+    border-color: var(--red);
+  }
+
+  .camera-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+  }
+
+  .camera-grid button {
+    padding: 16px;
+    font-size: 14px;
+    text-align: left;
+  }
+
+  .camera-grid button .scene {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  #feed {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  #feed li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  #feed li:last-child { border-bottom: none; }
+
+  #feed .time {
+    color: var(--muted);
+    margin-right: 8px;
+  }
+
+  #feed .status-ok { color: var(--green); }
+  #feed .status-bad { color: var(--red); }
+
+  #feed:empty::after {
+    content: "No redemptions yet this session.";
+    color: var(--muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <div class="top-row">
+    <h1>OBS Chat Controller</h1>
+    <a class="nav-link" href="/setup">Setup &rarr;</a>
+  </div>
+
+  <div class="panel">
+    <div class="status-row">
+      <span class="pill"><span id="obsDot" class="dot"></span>OBS</span>
+      <span class="pill"><span id="twitchDot" class="dot"></span>Twitch</span>
+      <span class="scene-label">Current scene: <strong id="currentScene">—</strong></span>
+      <button id="pauseBtn">Pause redemptions</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="camera-grid" id="cameraGrid"></div>
+  </div>
+
+  <div class="panel">
+    <ul id="feed"></ul>
+  </div>
+
+<script>
+  const cameraGrid = document.getElementById("cameraGrid");
+  const feed = document.getElementById("feed");
+  const obsDot = document.getElementById("obsDot");
+  const twitchDot = document.getElementById("twitchDot");
+  const currentScene = document.getElementById("currentScene");
+  const pauseBtn = document.getElementById("pauseBtn");
+
+  let paused = false;
+  let cameras = [];
+
+  function renderCameras() {
+    cameraGrid.innerHTML = "";
+    for (const reward of cameras) {
+      if (reward.kind === "scene") {
+        const btn = document.createElement("button");
+        btn.innerHTML = `${reward.title}<span class="scene">${reward.sceneName}</span>`;
+        if (reward.sceneName === currentScene.textContent) btn.classList.add("active");
+        btn.addEventListener("click", () => {
+          send({ type: "switchScene", sceneName: reward.sceneName });
+        });
+        cameraGrid.appendChild(btn);
+      } else if (reward.kind === "insta360Preset") {
+        const btn = document.createElement("button");
+        btn.innerHTML = `${reward.title}<span class="scene">${reward.hotkey}</span>`;
+        btn.addEventListener("click", () => {
+          send({ type: "triggerInsta360Preset", hotkey: reward.hotkey });
+        });
+        cameraGrid.appendChild(btn);
+      }
+    }
+  }
+
+  function applyStatus(status) {
+    obsDot.classList.toggle("on", status.obsConnected);
+    twitchDot.classList.toggle("on", status.twitchConnected);
+    currentScene.textContent = status.currentScene || "—";
+    paused = status.paused;
+    pauseBtn.textContent = paused ? "Resume redemptions" : "Pause redemptions";
+    pauseBtn.classList.toggle("paused", paused);
+    renderCameras();
+  }
+
+  function addFeedItem(entry) {
+    const li = document.createElement("li");
+    const time = new Date(entry.timestamp).toLocaleTimeString();
+    const statusClass = entry.status === "FULFILLED" ? "status-ok" : "status-bad";
+    li.innerHTML = `<span class="time">${time}</span><strong>${entry.userName}</strong> redeemed "${entry.rewardTitle}" → ${entry.sceneName} <span class="${statusClass}">${entry.status}</span>`;
+    feed.prepend(li);
+    while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+  }
+
+  let ws;
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}`);
+
+    ws.addEventListener("message", (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "init") {
+        cameras = msg.effectiveRewards;
+        applyStatus(msg.status);
+      } else if (msg.type === "status") {
+        applyStatus(msg.status);
+      } else if (msg.type === "rewardsUpdate") {
+        cameras = msg.effectiveRewards;
+        renderCameras();
+      } else if (msg.type === "redemption") {
+        addFeedItem(msg.entry);
+      }
+    });
+
+    ws.addEventListener("close", () => setTimeout(connect, 2000));
+  }
+
+  function send(message) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+  }
+
+  pauseBtn.addEventListener("click", () => {
+    send({ type: "setPaused", paused: !paused });
+  });
+
+  connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "auto": {
+    "cost": 150,
+    "globalCooldownSeconds": 30,
+    "backgroundColor": "#9147FF",
+    "titleTemplate": "Switch to {scene}",
+    "promptTemplate": "Switch the stream camera to {scene}",
+    "excludedScenes": []
+  },
+  "transition": {
+    "enabled": true,
+    "cost": 500,
+    "globalCooldownSeconds": 60,
+    "backgroundColor": "#FF4500",
+    "title": "Random Transition Cam Switch",
+    "prompt": "Switch camera using a random OBS transition"
+  },
+  "insta360": {
+    "enabled": true,
+    "cost": 200,
+    "globalCooldownSeconds": 30,
+    "backgroundColor": "#1e90ff",
+    "titleTemplate": "Camera preset: {preset}",
+    "promptTemplate": "Move the Insta360 Link camera to the {preset} preset",
+    "presets": [
+      {
+        "name": "Device1",
+        "hotkey": "alt+1"
+      },
+      {
+        "name": "Device2",
+        "hotkey": "alt+2"
+      },
+      {
+        "name": "Device3",
+        "hotkey": "alt+3"
+      },
+      {
+        "name": "Device4",
+        "hotkey": "alt+4"
+      }
+    ]
+  }
+}
