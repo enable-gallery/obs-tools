@@ -1,0 +1,8 @@
+{
+  "name": "obs-tools",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "obs-chat-controller"
+  ]
+}

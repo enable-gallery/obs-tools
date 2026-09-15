@@ -1,21 +1,23 @@
-import { loadConfig } from "./config.js";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { loadConfig, normalizeChannelName } from "./config.js";
 import { readRewardsFile, writeRewardsFile, type RewardsFile } from "./configStore.js";
-import { deriveAutoRewards, deriveInsta360PresetRewards, deriveTransitionReward } from "./autoRewards.js";
+import { deriveAutoRewards, deriveTransitionReward } from "./autoRewards.js";
 import { updateEnvValues } from "./envStore.js";
-import { ObsController } from "./obsController.js";
-import { sendHotkey } from "./hotkeySender.js";
-import { readConfiguredHotkeys } from "./insta360ControllerConfig.js";
-import { TwitchAuth } from "./twitchAuth.js";
-import { TwitchApi } from "./twitchApi.js";
-import { syncRewards } from "./rewardSync.js";
-import { EventSubClient, type RedemptionEvent } from "./eventSubClient.js";
-import { SessionLog, type RedemptionLogEntry } from "./sessionLog.js";
+import { ObsController } from "@obs-tools/obs-client";
+import { TwitchAuth } from "@obs-tools/twitch-auth";
+import { TwitchRewardsClient, syncRewards, EventSubClient, type RedemptionEvent } from "@obs-tools/twitch-rewards";
+import { SessionLog, type SessionLogEntry } from "@obs-tools/session-log";
 import { DashboardServer } from "./dashboardServer.js";
 import type { RewardConfig } from "./config.js";
 
+const TWITCH_SCOPES = ["channel:read:redemptions", "channel:manage:redemptions"];
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SESSIONS_DIR = path.join(__dirname, "..", "..", "sessions");
+
 async function main() {
   const config = loadConfig();
-  const sessionLog = new SessionLog("sessions", new Date());
+  const sessionLog = new SessionLog(SESSIONS_DIR, new Date());
 
   const obs = new ObsController();
   let obsUrl = config.obs.url;
@@ -54,8 +56,7 @@ async function main() {
   function computeEffectiveRewards(): RewardConfig[] {
     const sceneRewards = deriveAutoRewards(obs.listScenes(), rewardsFile.auto);
     const transitionRewards = deriveTransitionReward(rewardsFile.transition, sceneRewards.length);
-    const insta360Rewards = deriveInsta360PresetRewards(rewardsFile.insta360);
-    return [...sceneRewards, ...transitionRewards, ...insta360Rewards];
+    return [...sceneRewards, ...transitionRewards];
   }
 
   const initialRewards = computeEffectiveRewards();
@@ -69,13 +70,19 @@ async function main() {
     return Boolean(twitchClientId && twitchClientSecret && twitchChannel);
   }
 
-  let auth = new TwitchAuth(twitchClientId, twitchClientSecret, twitchRedirectUri);
-  let api = new TwitchApi(twitchClientId, auth);
+  let auth = new TwitchAuth({
+    clientId: twitchClientId,
+    clientSecret: twitchClientSecret,
+    redirectUri: twitchRedirectUri,
+    scopes: TWITCH_SCOPES,
+  });
+  let api = new TwitchRewardsClient(twitchClientId, auth);
 
   let broadcasterId: string | null = null;
   let rewardIdToConfig = new Map<string, RewardConfig>();
   let eventSub: EventSubClient | null = null;
   let paused = false;
+  let pausedEdit = false;
   let twitchConnecting = false;
 
   const dashboard = new DashboardServer({
@@ -92,6 +99,7 @@ async function main() {
       twitchConnected: false,
       currentScene: obs.getCurrentScene(),
       paused,
+      pausedEdit,
     },
     callbacks: {
       onSwitchScene: (sceneName) => {
@@ -108,6 +116,11 @@ async function main() {
         console.log(`[dashboard] redemptions ${paused ? "paused" : "resumed"}`);
         dashboard.updateStatus({ paused });
       },
+      onSetPausedEdit: (value) => {
+        pausedEdit = value;
+        console.log(`[dashboard] edit redemptions ${pausedEdit ? "paused" : "resumed"}`);
+        dashboard.updateStatus({ pausedEdit });
+      },
       onConnectTwitch: () => {
         void startTwitchConnection();
       },
@@ -123,20 +136,6 @@ async function main() {
         console.log("[rewards] saved transition-reward settings from setup page");
         void resyncRewards();
       },
-      onSaveInsta360Settings: (settings) => {
-        rewardsFile = { ...rewardsFile, insta360: settings };
-        writeRewardsFile(rewardsFile);
-        console.log("[rewards] saved Insta360 preset settings from setup page");
-        void resyncRewards();
-      },
-      onTriggerInsta360Preset: (hotkey) => {
-        sendHotkey(hotkey).catch((err) => {
-          console.error(`[insta360] failed to trigger preset hotkey "${hotkey}":`, err);
-        });
-      },
-      onRequestInsta360Hotkeys: () => {
-        dashboard.sendInsta360Hotkeys(readConfiguredHotkeys());
-      },
       onSaveObsConfig: async ({ url, password }) => {
         const effectivePassword = password || obsPassword;
         const success = await connectObs(url, effectivePassword);
@@ -148,9 +147,22 @@ async function main() {
           void resyncRewards();
         }
       },
+      onRefreshObsScenes: async () => {
+        if (!obsConnected) {
+          console.warn("[obs] can't refresh scenes, not connected");
+          return;
+        }
+        try {
+          const scenes = await obs.refreshScenes();
+          dashboard.updateObsScenes(scenes);
+          void resyncRewards();
+        } catch (err) {
+          console.error("[obs] failed to refresh scene list:", err);
+        }
+      },
       onSaveTwitchConfig: ({ clientId, clientSecret, redirectUri, channel }) => {
         twitchClientId = clientId;
-        twitchChannel = channel;
+        twitchChannel = normalizeChannelName(channel);
         twitchRedirectUri = redirectUri;
         if (clientSecret) twitchClientSecret = clientSecret;
 
@@ -161,8 +173,13 @@ async function main() {
           TWITCH_CHANNEL: twitchChannel,
         });
 
-        auth = new TwitchAuth(twitchClientId, twitchClientSecret, twitchRedirectUri);
-        api = new TwitchApi(twitchClientId, auth);
+        auth = new TwitchAuth({
+          clientId: twitchClientId,
+          clientSecret: twitchClientSecret,
+          redirectUri: twitchRedirectUri,
+          scopes: TWITCH_SCOPES,
+        });
+        api = new TwitchRewardsClient(twitchClientId, auth);
         broadcasterId = null;
         eventSub?.disconnect();
         eventSub = null;
@@ -206,7 +223,7 @@ async function main() {
     void resyncRewards();
   });
 
-  function logRedemption(entry: RedemptionLogEntry): void {
+  function logRedemption(entry: SessionLogEntry): void {
     sessionLog.record(entry);
     dashboard.pushRedemption(entry);
   }
@@ -214,6 +231,7 @@ async function main() {
   async function cancelRedemption(
     broadcasterId: string,
     event: RedemptionEvent,
+    kind: "edit" | "transition",
     sceneName: string,
     reason: string
   ): Promise<void> {
@@ -223,7 +241,8 @@ async function main() {
       timestamp: new Date().toISOString(),
       userName: event.userName,
       rewardTitle: event.rewardTitle,
-      sceneName,
+      kind,
+      detail: sceneName,
       status: "CANCELED",
     });
   }
@@ -231,6 +250,7 @@ async function main() {
   async function fulfillRedemption(
     broadcasterId: string,
     event: RedemptionEvent,
+    kind: "edit" | "transition",
     sceneName: string,
     detail?: string
   ): Promise<void> {
@@ -240,7 +260,8 @@ async function main() {
       timestamp: new Date().toISOString(),
       userName: event.userName,
       rewardTitle: event.rewardTitle,
-      sceneName,
+      kind,
+      detail: sceneName,
       status: "FULFILLED",
     });
   }
@@ -259,7 +280,7 @@ async function main() {
         dashboard.updateStatus({ twitchAuthorized: true });
       }
 
-      const id = await api.getBroadcasterId(config.twitch.channel);
+      const id = await api.getBroadcasterId(twitchChannel);
       broadcasterId = id;
       console.log(`[twitch] broadcaster id: ${id}`);
 
@@ -277,38 +298,23 @@ async function main() {
           if (reward.kind === "scene") {
             const sceneName = reward.sceneName!;
 
-            if (paused) {
-              await cancelRedemption(id, event, sceneName, "ignored (redemptions paused)");
+            if (paused || pausedEdit) {
+              const reason = paused ? "ignored (redemptions paused)" : "ignored (edit redemptions paused)";
+              await cancelRedemption(id, event, "edit", sceneName, reason);
               return;
             }
 
             if (!obs.hasScene(sceneName)) {
-              await cancelRedemption(id, event, sceneName, `maps to unknown OBS scene "${sceneName}"`);
+              await cancelRedemption(id, event, "edit", sceneName, `maps to unknown OBS scene "${sceneName}"`);
               return;
             }
 
             try {
               await obs.switchScene(sceneName);
-              await fulfillRedemption(id, event, sceneName);
+              await fulfillRedemption(id, event, "edit", sceneName);
             } catch (err) {
               console.error(`[redemption] failed to switch to "${sceneName}":`, err);
-              await cancelRedemption(id, event, sceneName, "scene switch failed");
-            }
-            return;
-          }
-
-          if (reward.kind === "insta360Preset") {
-            if (paused) {
-              await cancelRedemption(id, event, "(Insta360)", "ignored (redemptions paused)");
-              return;
-            }
-
-            try {
-              await sendHotkey(reward.hotkey!);
-              await fulfillRedemption(id, event, "(Insta360)", "via Insta360 Link preset hotkey");
-            } catch (err) {
-              console.error(`[redemption] failed to trigger Insta360 preset "${reward.title}":`, err);
-              await cancelRedemption(id, event, "(Insta360)", "hotkey send failed");
+              await cancelRedemption(id, event, "edit", sceneName, "scene switch failed");
             }
             return;
           }
@@ -316,7 +322,7 @@ async function main() {
           // Transition reward: no fixed scene, pick a random camera (preferring one
           // different from the current scene) and a random installed OBS transition.
           if (paused) {
-            await cancelRedemption(id, event, "(random)", "ignored (redemptions paused)");
+            await cancelRedemption(id, event, "transition", "(random)", "ignored (redemptions paused)");
             return;
           }
 
@@ -325,7 +331,7 @@ async function main() {
           const scenePool = otherScenes.length > 0 ? otherScenes : candidates;
 
           if (scenePool.length === 0) {
-            await cancelRedemption(id, event, "(random)", "no eligible OBS scenes to transition to");
+            await cancelRedemption(id, event, "transition", "(random)", "no eligible OBS scenes to transition to");
             return;
           }
 
@@ -339,10 +345,10 @@ async function main() {
             } else {
               await obs.switchScene(sceneName);
             }
-            await fulfillRedemption(id, event, sceneName, `via "${transitionName ?? "default"}" transition`);
+            await fulfillRedemption(id, event, "transition", sceneName, `via "${transitionName ?? "default"}" transition`);
           } catch (err) {
             console.error(`[redemption] failed to transition to "${sceneName}":`, err);
-            await cancelRedemption(id, event, sceneName, "transition switch failed");
+            await cancelRedemption(id, event, "transition", sceneName, "transition switch failed");
           }
         },
         (connected) => dashboard.updateStatus({ twitchConnected: connected })

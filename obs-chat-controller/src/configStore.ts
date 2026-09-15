@@ -41,35 +41,9 @@ export const DEFAULT_TRANSITION_SETTINGS: TransitionRewardSettings = {
   prompt: "Switch camera using a random OBS transition",
 };
 
-export interface Insta360Preset {
-  name: string;
-  hotkey: string;
-}
-
-export interface Insta360RewardSettings {
-  enabled: boolean;
-  cost: number;
-  globalCooldownSeconds: number;
-  backgroundColor: string;
-  titleTemplate: string;
-  promptTemplate: string;
-  presets: Insta360Preset[];
-}
-
-export const DEFAULT_INSTA360_SETTINGS: Insta360RewardSettings = {
-  enabled: false,
-  cost: 200,
-  globalCooldownSeconds: 30,
-  backgroundColor: "#1E90FF",
-  titleTemplate: "Camera preset: {preset}",
-  promptTemplate: "Move the Insta360 Link camera to the {preset} preset",
-  presets: [],
-};
-
 export interface RewardsFile {
   auto: AutoRewardSettings;
   transition: TransitionRewardSettings;
-  insta360: Insta360RewardSettings;
 }
 
 export function readRewardsFile(): RewardsFile {
@@ -77,7 +51,6 @@ export function readRewardsFile(): RewardsFile {
   return {
     auto: { ...DEFAULT_AUTO_SETTINGS, ...parsed.auto },
     transition: { ...DEFAULT_TRANSITION_SETTINGS, ...parsed.transition },
-    insta360: { ...DEFAULT_INSTA360_SETTINGS, ...parsed.insta360 },
   };
 }
 

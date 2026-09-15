@@ -1,8 +1,7 @@
 import { DashboardServer } from "./dashboardServer.js";
-import { deriveAutoRewards, deriveInsta360PresetRewards, deriveTransitionReward } from "./autoRewards.js";
+import { deriveAutoRewards, deriveTransitionReward } from "./autoRewards.js";
 import {
   DEFAULT_AUTO_SETTINGS,
-  DEFAULT_INSTA360_SETTINGS,
   DEFAULT_TRANSITION_SETTINGS,
   type RewardsFile,
 } from "./configStore.js";
@@ -14,17 +13,16 @@ let obsScenes: string[] = [];
 let rewardsFile: RewardsFile = {
   auto: DEFAULT_AUTO_SETTINGS,
   transition: DEFAULT_TRANSITION_SETTINGS,
-  insta360: DEFAULT_INSTA360_SETTINGS,
 };
 
 function computeEffectiveRewards() {
   const sceneRewards = deriveAutoRewards(obsScenes, rewardsFile.auto);
   const transitionRewards = deriveTransitionReward(rewardsFile.transition, sceneRewards.length);
-  const insta360Rewards = deriveInsta360PresetRewards(rewardsFile.insta360);
-  return [...sceneRewards, ...transitionRewards, ...insta360Rewards];
+  return [...sceneRewards, ...transitionRewards];
 }
 
 let paused = false;
+let pausedEdit = false;
 let currentScene = "Cam 1";
 let twitchConfigured = false;
 let twitchAuthorized = false;
@@ -43,7 +41,7 @@ const dashboard = new DashboardServer({
   obsScenes,
   obsUrl,
   twitchConfig: { clientId: twitchClientId, redirectUri: twitchRedirectUri, channel: twitchChannel },
-  status: { obsConnected, twitchConfigured, twitchAuthorized, twitchConnected: false, currentScene, paused },
+  status: { obsConnected, twitchConfigured, twitchAuthorized, twitchConnected: false, currentScene, paused, pausedEdit },
   callbacks: {
     onSwitchScene: (sceneName: string) => {
       currentScene = sceneName;
@@ -54,6 +52,11 @@ const dashboard = new DashboardServer({
       paused = value;
       console.log(`[demo] paused: ${paused}`);
       dashboard.updateStatus({ paused });
+    },
+    onSetPausedEdit: (value: boolean) => {
+      pausedEdit = value;
+      console.log(`[demo] edit paused: ${pausedEdit}`);
+      dashboard.updateStatus({ pausedEdit });
     },
     onConnectTwitch: () => {
       console.log("[demo] pretending to authorize with Twitch...");
@@ -82,24 +85,6 @@ const dashboard = new DashboardServer({
       console.log("[demo] saved transition-reward settings");
       dashboard.updateRewardsConfig(rewardsFile, computeEffectiveRewards());
     },
-    onSaveInsta360Settings: (settings) => {
-      rewardsFile = { ...rewardsFile, insta360: settings };
-      console.log("[demo] saved Insta360 preset settings");
-      dashboard.updateRewardsConfig(rewardsFile, computeEffectiveRewards());
-    },
-    onTriggerInsta360Preset: (hotkey) => {
-      console.log(`[demo] pretending to send hotkey "${hotkey}" to Insta360 Link Controller`);
-    },
-    onRequestInsta360Hotkeys: () => {
-      console.log("[demo] pretending to scan Insta360 Link Controller for configured hotkeys");
-      dashboard.sendInsta360Hotkeys({
-        found: true,
-        hotkeys: [
-          { key: "Device1", hotkey: "ctrl+alt+1" },
-          { key: "Device2", hotkey: "ctrl+alt+2" },
-        ],
-      });
-    },
     onSaveObsConfig: (payload: { url: string; password: string }) => {
       obsUrl = payload.url;
       console.log(`[demo] pretending to connect to OBS at ${obsUrl}...`);
@@ -112,6 +97,19 @@ const dashboard = new DashboardServer({
         dashboard.updateRewardsConfig(rewardsFile, computeEffectiveRewards());
         console.log("[demo] fake OBS connection established, scenes populated");
       }, 1000);
+    },
+    onRefreshObsScenes: () => {
+      if (!obsConnected) {
+        console.log("[demo] can't refresh scenes, not connected");
+        return;
+      }
+      console.log("[demo] pretending to refresh scene list from OBS...");
+      setTimeout(() => {
+        obsScenes = [...FAKE_OBS_SCENES, "Refreshed Cam"];
+        dashboard.updateObsScenes(obsScenes);
+        dashboard.updateRewardsConfig(rewardsFile, computeEffectiveRewards());
+        console.log("[demo] fake scene list refreshed");
+      }, 500);
     },
   },
 });

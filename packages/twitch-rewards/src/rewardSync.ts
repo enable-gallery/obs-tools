@@ -1,16 +1,15 @@
-import { TwitchApi } from "./twitchApi.js";
-import type { RewardConfig } from "./config.js";
+import { TwitchRewardsClient, type TwitchRewardInput } from "./rewardsClient.js";
 
-export async function syncRewards(
-  api: TwitchApi,
+export async function syncRewards<T extends TwitchRewardInput>(
+  api: TwitchRewardsClient,
   broadcasterId: string,
-  rewards: RewardConfig[],
+  rewards: T[],
   pruneRemoved: boolean
-): Promise<Map<string, RewardConfig>> {
+): Promise<Map<string, T>> {
   const existing = await api.listManagedRewards(broadcasterId);
   const existingByTitle = new Map(existing.map((r) => [r.title, r]));
   const configuredTitles = new Set(rewards.map((r) => r.title));
-  const rewardIdToConfig = new Map<string, RewardConfig>();
+  const rewardIdToConfig = new Map<string, T>();
 
   for (const reward of rewards) {
     const current = existingByTitle.get(reward.title);

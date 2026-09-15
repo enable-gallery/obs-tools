@@ -1,0 +1,16 @@
+{
+  "name": "@obs-tools/session-log",
+  "version": "1.0.0",
+  "description": "Per-run JSONL activity log (e.g. redemptions) with an end-of-session console summary",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

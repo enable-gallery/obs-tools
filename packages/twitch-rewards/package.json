@@ -1,0 +1,21 @@
+{
+  "name": "@obs-tools/twitch-rewards",
+  "version": "1.0.0",
+  "description": "Shared Twitch channel-points reward management: reward CRUD/reconciliation and an EventSub redemption listener",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@obs-tools/twitch-auth": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2"
+  }
+}

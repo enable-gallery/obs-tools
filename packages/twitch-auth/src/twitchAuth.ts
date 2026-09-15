@@ -2,9 +2,6 @@ import http from "node:http";
 import { URL } from "node:url";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
-const TOKEN_FILE = ".twitch-tokens.json";
-const SCOPES = ["channel:read:redemptions", "channel:manage:redemptions"];
-
 interface StoredTokens {
   accessToken: string;
   refreshToken: string;
@@ -18,16 +15,33 @@ interface TokenResponse {
   expires_in: number;
 }
 
+export interface TwitchAuthOptions {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  /** Scopes to request during authorization — differs per tool, so there's no default. */
+  scopes: string[];
+  /** Where access/refresh tokens are persisted between runs. Defaults to ".twitch-tokens.json" in the cwd. */
+  tokenFile?: string;
+}
+
 export class TwitchAuth {
+  private readonly clientId: string;
+  private readonly clientSecret: string;
+  private readonly redirectUri: string;
+  private readonly scopes: string[];
+  private readonly tokenFile: string;
   private tokens: StoredTokens | null = null;
 
-  constructor(
-    private readonly clientId: string,
-    private readonly clientSecret: string,
-    private readonly redirectUri: string
-  ) {
-    if (existsSync(TOKEN_FILE)) {
-      this.tokens = JSON.parse(readFileSync(TOKEN_FILE, "utf-8")) as StoredTokens;
+  constructor(options: TwitchAuthOptions) {
+    this.clientId = options.clientId;
+    this.clientSecret = options.clientSecret;
+    this.redirectUri = options.redirectUri;
+    this.scopes = options.scopes;
+    this.tokenFile = options.tokenFile ?? ".twitch-tokens.json";
+
+    if (existsSync(this.tokenFile)) {
+      this.tokens = JSON.parse(readFileSync(this.tokenFile, "utf-8")) as StoredTokens;
     }
   }
 
@@ -51,7 +65,7 @@ export class TwitchAuth {
   }
 
   private persist(): void {
-    writeFileSync(TOKEN_FILE, JSON.stringify(this.tokens, null, 2));
+    writeFileSync(this.tokenFile, JSON.stringify(this.tokens, null, 2));
   }
 
   private storeTokenResponse(data: TokenResponse): void {
@@ -112,9 +126,9 @@ export class TwitchAuth {
         authorizeUrl.searchParams.set("client_id", this.clientId);
         authorizeUrl.searchParams.set("redirect_uri", this.redirectUri);
         authorizeUrl.searchParams.set("response_type", "code");
-        authorizeUrl.searchParams.set("scope", SCOPES.join(" "));
+        authorizeUrl.searchParams.set("scope", this.scopes.join(" "));
 
-        console.log("\n[auth] Open this URL as the broadcaster to authorize channel point access:\n");
+        console.log("\n[auth] Open this URL as the broadcaster to authorize:\n");
         console.log(authorizeUrl.toString());
         console.log("\n[auth] Waiting for authorization...\n");
         onUrlReady?.(authorizeUrl.toString());
@@ -135,6 +149,6 @@ export class TwitchAuth {
     }
 
     this.storeTokenResponse((await res.json()) as TokenResponse);
-    console.log(`[auth] authorization successful, tokens saved to ${TOKEN_FILE}`);
+    console.log(`[auth] authorization successful, tokens saved to ${this.tokenFile}`);
   }
 }

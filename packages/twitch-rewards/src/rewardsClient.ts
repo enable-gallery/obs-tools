@@ -1,7 +1,12 @@
-import { TwitchAuth } from "./twitchAuth.js";
-import type { RewardConfig } from "./config.js";
+import { TwitchAuth, TwitchHelixClient } from "@obs-tools/twitch-auth";
 
-const HELIX = "https://api.twitch.tv/helix";
+export interface TwitchRewardInput {
+  title: string;
+  prompt?: string;
+  cost: number;
+  globalCooldownSeconds?: number;
+  backgroundColor?: string;
+}
 
 export interface TwitchReward {
   id: string;
@@ -13,34 +18,15 @@ export interface TwitchReward {
   background_color: string;
 }
 
-export class TwitchApi {
-  constructor(
-    private readonly clientId: string,
-    private readonly auth: TwitchAuth
-  ) {}
+export class TwitchRewardsClient {
+  private readonly helix: TwitchHelixClient;
 
-  private async call(path: string, init: RequestInit = {}): Promise<Response> {
-    const token = await this.auth.getAccessToken();
-    const res = await fetch(`${HELIX}${path}`, {
-      ...init,
-      headers: {
-        ...init.headers,
-        "Client-Id": this.clientId,
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Twitch API ${init.method ?? "GET"} ${path} failed: ${res.status} ${body}`);
-    }
-
-    return res;
+  constructor(clientId: string, auth: TwitchAuth) {
+    this.helix = new TwitchHelixClient(clientId, auth);
   }
 
   async getBroadcasterId(login: string): Promise<string> {
-    const res = await this.call(`/users?login=${encodeURIComponent(login)}`);
+    const res = await this.helix.call(`/users?login=${encodeURIComponent(login)}`);
     const data = (await res.json()) as { data: { id: string }[] };
     const user = data.data[0];
     if (!user) throw new Error(`No Twitch user found for channel "${login}"`);
@@ -48,15 +34,15 @@ export class TwitchApi {
   }
 
   async listManagedRewards(broadcasterId: string): Promise<TwitchReward[]> {
-    const res = await this.call(
+    const res = await this.helix.call(
       `/channel_points/custom_rewards?broadcaster_id=${broadcasterId}&only_manageable_rewards=true`
     );
     const data = (await res.json()) as { data: TwitchReward[] };
     return data.data;
   }
 
-  async createReward(broadcasterId: string, reward: RewardConfig): Promise<TwitchReward> {
-    const res = await this.call(`/channel_points/custom_rewards?broadcaster_id=${broadcasterId}`, {
+  async createReward(broadcasterId: string, reward: TwitchRewardInput): Promise<TwitchReward> {
+    const res = await this.helix.call(`/channel_points/custom_rewards?broadcaster_id=${broadcasterId}`, {
       method: "POST",
       body: JSON.stringify(this.toApiBody(reward)),
     });
@@ -64,8 +50,8 @@ export class TwitchApi {
     return data.data[0];
   }
 
-  async updateReward(broadcasterId: string, rewardId: string, reward: RewardConfig): Promise<TwitchReward> {
-    const res = await this.call(
+  async updateReward(broadcasterId: string, rewardId: string, reward: TwitchRewardInput): Promise<TwitchReward> {
+    const res = await this.helix.call(
       `/channel_points/custom_rewards?broadcaster_id=${broadcasterId}&id=${rewardId}`,
       { method: "PATCH", body: JSON.stringify(this.toApiBody(reward)) }
     );
@@ -74,7 +60,7 @@ export class TwitchApi {
   }
 
   async deleteReward(broadcasterId: string, rewardId: string): Promise<void> {
-    await this.call(`/channel_points/custom_rewards?broadcaster_id=${broadcasterId}&id=${rewardId}`, {
+    await this.helix.call(`/channel_points/custom_rewards?broadcaster_id=${broadcasterId}&id=${rewardId}`, {
       method: "DELETE",
     });
   }
@@ -85,14 +71,14 @@ export class TwitchApi {
     redemptionId: string,
     status: "FULFILLED" | "CANCELED"
   ): Promise<void> {
-    await this.call(
+    await this.helix.call(
       `/channel_points/custom_rewards/redemptions?broadcaster_id=${broadcasterId}&reward_id=${rewardId}&id=${redemptionId}`,
       { method: "PATCH", body: JSON.stringify({ status }) }
     );
   }
 
   async createEventSubSubscription(broadcasterId: string, sessionId: string): Promise<void> {
-    await this.call(`/eventsub/subscriptions`, {
+    await this.helix.call(`/eventsub/subscriptions`, {
       method: "POST",
       body: JSON.stringify({
         type: "channel.channel_points_custom_reward_redemption.add",
@@ -103,7 +89,7 @@ export class TwitchApi {
     });
   }
 
-  private toApiBody(reward: RewardConfig) {
+  private toApiBody(reward: TwitchRewardInput) {
     return {
       title: reward.title,
       prompt: reward.prompt ?? "",

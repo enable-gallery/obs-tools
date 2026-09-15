@@ -18,7 +18,7 @@ Lets viewers switch OBS scenes/cameras by redeeming Twitch Channel Point rewards
 
 ### 2. Register/confirm your Twitch application
 
-At https://dev.twitch.tv/console, your app needs a redirect URI registered that matches `TWITCH_REDIRECT_URI` below (default `http://localhost:3000/callback`).
+At https://dev.twitch.tv/console, your app needs a redirect URI registered that matches `TWITCH_REDIRECT_URI` below (default `http://localhost:3000/callback`). For a full walkthrough — creating the app, getting your Client ID/secret, and the first-run authorization flow — see [docs/twitch-auth-setup.md](docs/twitch-auth-setup.md).
 
 ### 3. Configure environment
 
@@ -40,7 +40,7 @@ DASHBOARD_PORT=4510
 
 Whatever you save from the Setup page is written back to `.env` so it persists across restarts.
 
-### 4. Configure camera rewards in `config.json`
+### 4. Configure edit rewards in `config.json`
 
 One reward is generated per OBS scene automatically — no per-camera list to maintain. Add or remove a scene in OBS and the rewards on Twitch update to match. Configure the shared defaults and which scenes to exclude (e.g. overlay/BRB scenes that aren't real camera angles), or do this from the Setup page instead of editing the file:
 
@@ -99,12 +99,14 @@ The app automatically reconnects both the OBS and EventSub WebSocket connections
 
 Just add the scene in OBS — its reward is created (and appears in the Setup page's scene checklist) automatically, no restart needed.
 
+This automatic sync tracks scene adds/removes/renames within OBS's current Scene Collection. If you switch to a *different* Scene Collection entirely, click "Refresh scenes" on the Setup page — OBS doesn't emit a change event for that, so the app won't notice on its own.
+
 ## Dashboard
 
 Open `http://localhost:4510` (or your configured `DASHBOARD_PORT`) while the app is running to get:
 
 - Live status pills for the OBS and Twitch/EventSub connections, plus the current OBS scene.
-- One button per configured camera reward, for switching scenes manually (bypasses Twitch entirely — no redemption or cost involved). The random transition reward isn't tied to a scene, so it has no manual button.
+- One button per configured edit reward, for switching scenes manually (bypasses Twitch entirely — no redemption or cost involved). The random transition reward isn't tied to a scene, so it has no manual button.
 - A "Pause redemptions" toggle. While paused, incoming channel point redemptions are automatically refunded instead of switching the camera — useful if you want to take manual control for a bit without disabling the rewards on Twitch.
 - A live feed of redemptions as they come in, mirroring the session log below.
 
@@ -116,45 +118,22 @@ Open `http://localhost:4510/setup` (linked from the main dashboard) for one-time
 
 - **OBS connection** — enter the WebSocket URL/password and click "Save & connect". Saved values are written to `.env` so they persist across restarts; leave the password field blank to keep the currently saved password.
 - **Twitch connection** — enter the app's Client ID/secret, channel name, and redirect URI (from `.env` or [dev.twitch.tv/console](https://dev.twitch.tv/console)) and click "Save"; leave the secret field blank to keep the currently saved one. Once saved, a "Connect to Twitch" button opens the OAuth authorization page in a new tab and reflects live authorized/connected status. Credentials only need to be entered once; the resulting token is reused and refreshed automatically afterward.
-- **Camera rewards** — shared cost/cooldown/color/title settings, plus a checklist of every scene currently in OBS to include or exclude, with a live preview of the resulting rewards. Saving writes to `config.json` and, if Twitch is already connected, immediately resyncs the rewards with Twitch and pushes the updated camera buttons to the main dashboard. Adding or removing a scene in OBS while the app is running resyncs the rewards on its own, with no action needed here.
+- **Edit rewards** — shared cost/cooldown/color/title settings, plus a checklist of every scene currently in OBS to include or exclude, with a live preview of the resulting rewards. Saving writes to `config.json` and, if Twitch is already connected, immediately resyncs the rewards with Twitch and pushes the updated camera buttons to the main dashboard. Adding or removing a scene in OBS while the app is running resyncs the rewards on its own, with no action needed here. A "Refresh scenes" button re-fetches the scene list from the live OBS connection on demand — use it after switching OBS Scene Collections, since that doesn't trigger the app's automatic scene sync.
 - **Random transition reward** — enable/disable it and set its own cost/cooldown/color/title/prompt, independent of the per-camera settings above. Saving resyncs it with Twitch the same way.
-
-## Insta360 Link camera presets
-
-If you're on an Insta360 Link webcam, you can also let viewers redeem channel points to move it to a saved pan/tilt/zoom preset, alongside the OBS scene switches above.
-
-This works by simulating the global hotkey combo you've bound to that preset in the official **Insta360 Link Controller** desktop app — so that app needs to be running, with a hotkey assigned to each preset you want to expose (its settings screen lets you bind one per preset).
-
-Configure it from the Setup page's **Insta360 Link presets** panel, or by editing `config.json`'s `insta360` key directly:
-
-```json
-{
-  "insta360": {
-    "enabled": true,
-    "cost": 200,
-    "globalCooldownSeconds": 30,
-    "backgroundColor": "#1E90FF",
-    "titleTemplate": "Camera preset: {preset}",
-    "promptTemplate": "Move the Insta360 Link camera to the {preset} preset",
-    "presets": [
-      { "name": "Wide", "hotkey": "alt+1" },
-      { "name": "Desk", "hotkey": "alt+2" }
-    ]
-  }
-}
-```
-
-- One Twitch reward is created per preset (same reconciliation behavior as camera rewards — add/remove/rename a preset and Twitch updates to match).
-- Hotkeys are written as `modifier+modifier+key`, e.g. `ctrl+alt+1` or `ctrl+shift+f5`. Supported modifiers: `ctrl`, `alt`, `shift`, `win`. Keys: any letter, digit, or `f1`-`f24`.
-- Click **Sync hotkeys from Insta360 Link Controller** on the Setup page to auto-fill hotkey combos straight out of that app's own config (`%LOCALAPPDATA%\Insta360\Insta360 Link Controller\startup.ini`), instead of retyping them. It only recovers the hotkey combo — Insta360 doesn't expose preset names locally (they live on the camera's firmware), so give each synced entry a descriptive name before saving. **Verify each synced hotkey actually moves the camera before relying on it** — the only entries currently exposed in that config file are labeled `Device1`-`Device4`, and on at least one setup those turned out not to be the real preset-recall shortcut (the working one omitted the `Ctrl` modifier). Adjust the hotkey field by hand if what's synced doesn't work.
-- Redeeming triggers the hotkey at the OS input level (not just to whichever window has focus), so it reaches the Insta360 Link Controller app's global hotkey listener even while OBS or the dashboard is focused.
-- Manual trigger buttons for each preset also appear on the main dashboard, same as the camera buttons.
 
 ## Who redeemed this session
 
-Every redemption (fulfilled or canceled/refunded) is appended to a per-run log at `sessions/session-<start-time>.jsonl`, one JSON object per line: `{ timestamp, userName, rewardTitle, sceneName, status }`.
+Every redemption (fulfilled or canceled/refunded) is appended to a per-run log at `../sessions/session-<start-time>.jsonl` (repo root, shared with other tools — the timestamped filename is what distinguishes runs, not the tool that made them), one JSON object per line: `{ timestamp, userName, rewardTitle, kind, detail, status }`. `kind` is `"edit"` for scene-switch rewards or `"transition"` for the random transition reward.
 
-When you stop the app (Ctrl+C), it prints a summary of that session to the console — each viewer who redeemed and how many times — and points you to the full log file. `sessions/` is gitignored since it's per-run local data.
+When you stop the app (Ctrl+C), it prints a summary of that session to the console — each viewer who redeemed and how many times — and points you to the full log file. The top-level `sessions/` directory is gitignored since it's per-run local data.
+
+## Shared packages
+
+This app is built on top of `obs-tools`' shared workspace packages —
+OBS connection handling, Twitch auth, and Twitch reward/redemption
+management all live outside this app so other tools in the repo can reuse
+them. See [../packages/README.md](../packages/README.md) for what each one
+does.
 
 ## Development
 
@@ -164,3 +143,8 @@ npm run dashboard:demo  # run the dashboard/setup UI against fake OBS/Twitch dat
 npm run typecheck       # type-check without emitting
 npm run build           # compile to JS via tsc
 ```
+
+Personal/stream-specific reward types (e.g. the old Insta360 Link camera
+presets) live under [archive/](archive/) rather than in the core app — see
+[archive/insta360-plugin/README.md](archive/insta360-plugin/README.md) for
+what was removed and why, pending a proper plugin system.

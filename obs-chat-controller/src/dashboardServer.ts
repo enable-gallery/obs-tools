@@ -3,11 +3,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
-import type { RedemptionLogEntry } from "./sessionLog.js";
+import type { SessionLogEntry } from "@obs-tools/session-log";
 import type { RewardConfig } from "./config.js";
-import type { AutoRewardSettings, Insta360RewardSettings, RewardsFile, TransitionRewardSettings } from "./configStore.js";
-import { isValidHotkeyCombo } from "./hotkeySender.js";
-import type { Insta360HotkeyScanResult } from "./insta360ControllerConfig.js";
+import type { AutoRewardSettings, RewardsFile, TransitionRewardSettings } from "./configStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -18,6 +16,7 @@ export interface DashboardStatus {
   twitchConnected: boolean;
   currentScene: string | null;
   paused: boolean;
+  pausedEdit: boolean;
 }
 
 export interface SaveObsConfigPayload {
@@ -41,14 +40,13 @@ export interface TwitchConfigView {
 export interface DashboardCallbacks {
   onSwitchScene: (sceneName: string) => void;
   onSetPaused: (paused: boolean) => void;
+  onSetPausedEdit: (paused: boolean) => void;
   onConnectTwitch: () => void;
   onSaveAutoSettings: (settings: AutoRewardSettings) => void;
   onSaveTransitionSettings: (settings: TransitionRewardSettings) => void;
-  onSaveInsta360Settings: (settings: Insta360RewardSettings) => void;
-  onTriggerInsta360Preset: (hotkey: string) => void;
-  onRequestInsta360Hotkeys: () => void;
   onSaveObsConfig: (payload: SaveObsConfigPayload) => void;
   onSaveTwitchConfig: (payload: SaveTwitchConfigPayload) => void;
+  onRefreshObsScenes: () => void;
 }
 
 export interface DashboardServerOptions {
@@ -91,35 +89,13 @@ function isValidTransitionSettings(value: any): value is TransitionRewardSetting
   );
 }
 
-function isValidInsta360Settings(value: any): value is Insta360RewardSettings {
-  return (
-    value &&
-    typeof value.enabled === "boolean" &&
-    typeof value.cost === "number" &&
-    value.cost > 0 &&
-    typeof value.globalCooldownSeconds === "number" &&
-    value.globalCooldownSeconds >= 0 &&
-    typeof value.backgroundColor === "string" &&
-    typeof value.titleTemplate === "string" &&
-    typeof value.promptTemplate === "string" &&
-    Array.isArray(value.presets) &&
-    value.presets.every(
-      (preset: unknown) =>
-        preset &&
-        typeof (preset as any).name === "string" &&
-        (preset as any).name.length > 0 &&
-        typeof (preset as any).hotkey === "string" &&
-        isValidHotkeyCombo((preset as any).hotkey)
-    )
-  );
-}
-
 export class DashboardServer {
   private readonly server: http.Server;
   private readonly wss: WebSocketServer;
   private readonly clients = new Set<WebSocket>();
   private readonly dashboardHtml: string;
   private readonly setupHtml: string;
+  private readonly twitchAuthSetupDoc: string;
   private readonly callbacks: DashboardCallbacks;
   private rewardsConfig: RewardsFile;
   private effectiveRewards: RewardConfig[];
@@ -140,6 +116,7 @@ export class DashboardServer {
     const publicDir = path.join(__dirname, "..", "public");
     this.dashboardHtml = readFileSync(path.join(publicDir, "dashboard.html"), "utf-8");
     this.setupHtml = readFileSync(path.join(publicDir, "setup.html"), "utf-8");
+    this.twitchAuthSetupDoc = readFileSync(path.join(__dirname, "..", "docs", "twitch-auth-setup.md"), "utf-8");
 
     this.server = http.createServer((req, res) => {
       if (req.url === "/" || req.url === "/index.html") {
@@ -148,6 +125,9 @@ export class DashboardServer {
       } else if (req.url === "/setup" || req.url === "/setup.html") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(this.setupHtml);
+      } else if (req.url === "/docs/twitch-auth-setup") {
+        res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end(this.twitchAuthSetupDoc);
       } else {
         res.writeHead(404);
         res.end("Not found");
@@ -182,20 +162,18 @@ export class DashboardServer {
           this.callbacks.onSwitchScene(msg.sceneName);
         } else if (msg.type === "setPaused" && typeof msg.paused === "boolean") {
           this.callbacks.onSetPaused(msg.paused);
+        } else if (msg.type === "setPausedEdit" && typeof msg.paused === "boolean") {
+          this.callbacks.onSetPausedEdit(msg.paused);
         } else if (msg.type === "connectTwitch") {
           this.callbacks.onConnectTwitch();
         } else if (msg.type === "saveAutoSettings" && isValidAutoSettings(msg.settings)) {
           this.callbacks.onSaveAutoSettings(msg.settings);
         } else if (msg.type === "saveTransitionSettings" && isValidTransitionSettings(msg.settings)) {
           this.callbacks.onSaveTransitionSettings(msg.settings);
-        } else if (msg.type === "saveInsta360Settings" && isValidInsta360Settings(msg.settings)) {
-          this.callbacks.onSaveInsta360Settings(msg.settings);
-        } else if (msg.type === "triggerInsta360Preset" && typeof msg.hotkey === "string") {
-          this.callbacks.onTriggerInsta360Preset(msg.hotkey);
-        } else if (msg.type === "requestInsta360Hotkeys") {
-          this.callbacks.onRequestInsta360Hotkeys();
         } else if (msg.type === "saveObsConfig" && typeof msg.url === "string") {
           this.callbacks.onSaveObsConfig({ url: msg.url, password: typeof msg.password === "string" ? msg.password : "" });
+        } else if (msg.type === "refreshObsScenes") {
+          this.callbacks.onRefreshObsScenes();
         } else if (msg.type === "saveTwitchConfig" && typeof msg.clientId === "string" && typeof msg.channel === "string") {
           this.callbacks.onSaveTwitchConfig({
             clientId: msg.clientId,
@@ -244,11 +222,7 @@ export class DashboardServer {
     this.broadcast({ type: "twitchAuthUrl", url });
   }
 
-  sendInsta360Hotkeys(result: Insta360HotkeyScanResult): void {
-    this.broadcast({ type: "insta360Hotkeys", ...result });
-  }
-
-  pushRedemption(entry: RedemptionLogEntry): void {
+  pushRedemption(entry: SessionLogEntry): void {
     this.broadcast({ type: "redemption", entry });
   }
 

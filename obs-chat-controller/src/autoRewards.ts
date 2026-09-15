@@ -1,5 +1,5 @@
 import type { RewardConfig } from "./config.js";
-import type { AutoRewardSettings, Insta360RewardSettings, TransitionRewardSettings } from "./configStore.js";
+import type { AutoRewardSettings, TransitionRewardSettings } from "./configStore.js";
 
 export function deriveAutoRewards(sceneNames: string[], settings: AutoRewardSettings): RewardConfig[] {
   const excluded = new Set(settings.excludedScenes);
@@ -30,20 +30,4 @@ export function deriveTransitionReward(settings: TransitionRewardSettings, eligi
       backgroundColor: settings.backgroundColor,
     },
   ];
-}
-
-export function deriveInsta360PresetRewards(settings: Insta360RewardSettings): RewardConfig[] {
-  if (!settings.enabled) return [];
-
-  return settings.presets
-    .filter((preset) => preset.name && preset.hotkey)
-    .map((preset) => ({
-      title: settings.titleTemplate.replace("{preset}", preset.name),
-      prompt: settings.promptTemplate.replace("{preset}", preset.name),
-      cost: settings.cost,
-      kind: "insta360Preset" as const,
-      hotkey: preset.hotkey,
-      globalCooldownSeconds: settings.globalCooldownSeconds,
-      backgroundColor: settings.backgroundColor,
-    }));
 }

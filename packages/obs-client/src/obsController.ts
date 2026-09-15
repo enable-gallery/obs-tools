@@ -51,6 +51,12 @@ export class ObsController {
     await this.connect(url, password);
   }
 
+  async refreshScenes(): Promise<string[]> {
+    const { scenes } = await this.obs.call("GetSceneList");
+    this.knownScenes = new Set(scenes.map((s) => String(s.sceneName)));
+    return [...this.knownScenes];
+  }
+
   onConnectionChange(handler: ConnectionChangeHandler): void {
     this.connectionHandlers.push(handler);
   }

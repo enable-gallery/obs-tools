@@ -1,17 +1,18 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
-export interface RedemptionLogEntry {
+export interface SessionLogEntry {
   timestamp: string;
   userName: string;
   rewardTitle: string;
-  sceneName: string;
+  kind: string;
+  detail: string;
   status: "FULFILLED" | "CANCELED";
 }
 
 export class SessionLog {
   private readonly filePath: string;
-  private readonly entries: RedemptionLogEntry[] = [];
+  private readonly entries: SessionLogEntry[] = [];
 
   constructor(sessionsDir: string, startedAt: Date) {
     mkdirSync(sessionsDir, { recursive: true });
@@ -19,7 +20,7 @@ export class SessionLog {
     this.filePath = path.join(sessionsDir, `session-${stamp}.jsonl`);
   }
 
-  record(entry: RedemptionLogEntry): void {
+  record(entry: SessionLogEntry): void {
     this.entries.push(entry);
     appendFileSync(this.filePath, JSON.stringify(entry) + "\n");
   }
