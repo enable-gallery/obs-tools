@@ -13,6 +13,7 @@ import { SetupServer, type SetupStatus } from "./setupServer.js";
 import type { ObsToolModule, ModuleContext, ModuleInstance, TwitchContext } from "./types.js";
 import { streamStatusLoggerModule } from "./modules/streamStatusLogger.js";
 import { cameraSwitcherModule } from "./modules/cameraSwitcher/index.js";
+import { DEFAULT_AUTO_SETTINGS, DEFAULT_TRANSITION_SETTINGS, type RewardsFile } from "./modules/cameraSwitcher/types.js";
 import { discordNotifyModule, DEFAULT_CONFIG as DISCORD_NOTIFY_DEFAULTS } from "./modules/discordNotify.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,10 @@ async function main(): Promise<void> {
 
   const sessionLog = new SessionLog(SESSIONS_DIR, new Date());
   const discordNotifyConfigStore = createModuleConfigStore("discord-notify", DISCORD_NOTIFY_DEFAULTS);
+  const cameraSwitcherConfigStore = createModuleConfigStore<RewardsFile>("camera-switcher", {
+    auto: DEFAULT_AUTO_SETTINGS,
+    transition: DEFAULT_TRANSITION_SETTINGS,
+  });
 
   // Persisted "keep this connected even without a module needing it" flags,
   // toggled from the setup page — lets a connection be tested/established
@@ -80,6 +85,11 @@ async function main(): Promise<void> {
       }
       obsConnected = true;
       console.log(`[obs] connected to ${url}`);
+      // The initial connect (unlike a later in-OBS scene change) doesn't
+      // fire onSceneListChange/onSceneChange, so the controller page would
+      // otherwise show a stale, empty scene list until something changed it.
+      setupServer.updateObsScenes(obs.listScenes());
+      setupServer.updateStatus({ currentScene: obs.getCurrentScene() });
       return true;
     } catch (err) {
       obsConnected = false;
@@ -232,6 +242,17 @@ async function main(): Promise<void> {
     }
   }
 
+  /** Lets a running module re-read and apply its own config store after the setup page writes to it. No-op if the module isn't running or doesn't support it. */
+  async function notifyConfigChanged(moduleId: string): Promise<void> {
+    const instance = instancesById.get(moduleId);
+    if (!instance?.onConfigChanged) return;
+    try {
+      await instance.onConfigChanged();
+    } catch (err) {
+      console.error(`[host] module "${moduleId}" failed to apply config change:`, err);
+    }
+  }
+
   async function runModuleTest(moduleId: string): Promise<void> {
     const instance = instancesById.get(moduleId);
     if (!instance?.test) {
@@ -257,8 +278,11 @@ async function main(): Promise<void> {
   const setupServer = new SetupServer({
     port: env.setupPort,
     obsUrl,
+    obsScenes: obs.listScenes(),
+    moduleIds: modules.map((m) => m.id),
     twitchConfig: { clientId: twitchClientId },
     discordNotifyConfig: discordNotifyConfigStore.read(),
+    cameraSwitcherConfig: cameraSwitcherConfigStore.read(),
     status: {
       obsConnected,
       obsEnabled: connectorFlags.obs,
@@ -269,6 +293,8 @@ async function main(): Promise<void> {
       discordConfigured: isDiscordConfigured(),
       discordConnected: false,
       discordEnabled: connectorFlags.discord,
+      currentScene: obs.getCurrentScene(),
+      chatPaused: false,
     },
     callbacks: {
       onConnectTwitch: () => {
@@ -351,8 +377,34 @@ async function main(): Promise<void> {
       onRunModuleTest: ({ moduleId }) => {
         void runModuleTest(moduleId);
       },
+      onSwitchScene: ({ sceneName }) => {
+        void obs.switchScene(sceneName).catch((err) => {
+          console.error(`[obs] manual switch to "${sceneName}" failed:`, err);
+        });
+      },
+      onSetPaused: ({ paused }) => {
+        if (!chat) return;
+        chat.setPaused(paused);
+        setupServer.updateStatus({ chatPaused: paused });
+      },
+      onSaveAutoRewardSettings: (settings) => {
+        const updated = { ...cameraSwitcherConfigStore.read(), auto: settings };
+        cameraSwitcherConfigStore.write(updated);
+        setupServer.updateCameraSwitcherConfig(updated);
+        void notifyConfigChanged("camera-switcher");
+      },
+      onSaveTransitionRewardSettings: (settings) => {
+        const updated = { ...cameraSwitcherConfigStore.read(), transition: settings };
+        cameraSwitcherConfigStore.write(updated);
+        setupServer.updateCameraSwitcherConfig(updated);
+        void notifyConfigChanged("camera-switcher");
+      },
     },
   });
+
+  obs.onSceneChange((sceneName) => setupServer.updateStatus({ currentScene: sceneName }));
+  obs.onSceneListChange((scenes) => setupServer.updateObsScenes(scenes));
+  sessionLog.onRecord((entry) => setupServer.pushFeedEntry(entry));
 
   if (obsIsNeeded()) {
     console.log(`[obs] connecting to ${obsUrl} ...`);

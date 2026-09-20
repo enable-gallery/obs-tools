@@ -10,9 +10,12 @@ export interface SessionLogEntry {
   status: "FULFILLED" | "CANCELED";
 }
 
+export type SessionLogHandler = (entry: SessionLogEntry) => void;
+
 export class SessionLog {
   private readonly filePath: string;
   private readonly entries: SessionLogEntry[] = [];
+  private readonly handlers: SessionLogHandler[] = [];
 
   constructor(sessionsDir: string, startedAt: Date) {
     mkdirSync(sessionsDir, { recursive: true });
@@ -23,6 +26,12 @@ export class SessionLog {
   record(entry: SessionLogEntry): void {
     this.entries.push(entry);
     appendFileSync(this.filePath, JSON.stringify(entry) + "\n");
+    this.handlers.forEach((h) => h(entry));
+  }
+
+  /** Notified with every entry as it's recorded — e.g. to mirror it to a live-updating UI. */
+  onRecord(handler: SessionLogHandler): void {
+    this.handlers.push(handler);
   }
 
   printSummary(): void {

@@ -31,7 +31,27 @@ infrastructure (not a module itself): it owns "a command was invoked" —
 whether from a typed Twitch chat message (`!command`) or a channel-points
 redemption — and routes it to whichever module registered a handler, so
 modules never need to touch EventSub or the redemption-status API
-themselves.
+themselves. It also owns a pause flag (toggled from the controller page)
+that auto-refunds channel-points redemptions without running their
+handler, without affecting typed chat commands.
+
+### Web pages
+
+The host serves two pages off one HTTP+WebSocket server
+([host/src/setupServer.ts](host/src/setupServer.ts)), both live-updating:
+
+- **`/`** — the controller: connection status, current OBS scene, a button
+  grid to switch scenes manually (bypassing the Twitch reward economy), a
+  pause/resume-redemptions toggle, a live feed of every redemption, and a
+  "send test" action for any running module that implements one (e.g.
+  discord-notify).
+- **`/setup`** — OBS/Twitch/Discord connection credentials (saved back to
+  `host/.env`, connects live, no restart needed), plus a few
+  module-specific settings that are awkward to hand-edit in
+  `host/config.json`: camera-switcher's reward settings ("Editing
+  rewards" and "Random transition reward" — cost, cooldown, title/prompt
+  templates, which OBS scenes are included) and discord-notify's target
+  channel and message template.
 
 ## Shared packages
 
@@ -55,11 +75,12 @@ npm run dev
 
 This runs the real host against your real OBS/Twitch/Discord connections
 (not a fake demo mode). It starts fine with nothing configured — open the
-setup page at `http://localhost:4600` to enter OBS/Twitch/Discord
+setup page at `http://localhost:4600/setup` to enter OBS/Twitch/Discord
 credentials at runtime (saved back to `host/.env`, connects live, no
 restart needed); or copy `host/.env.example` to `host/.env` and fill it in
 by hand ahead of time. Either way, which *modules* run is controlled
-separately by `host/config.json`.
+separately by `host/config.json`. The controller page at
+`http://localhost:4600/` is where you actually run the stream day to day.
 
 ## Repo layout
 

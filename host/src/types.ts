@@ -39,6 +39,8 @@ export interface ModuleInstance {
   stop(): Promise<void>;
   /** Optional manual trigger for a one-off test action (e.g. the setup page's "send test" button). Should throw with a descriptive message on failure. */
   test?(): Promise<void>;
+  /** Called after this module's config store was written from the setup page, so it can re-read and apply the change (e.g. resync Twitch rewards) without a restart. */
+  onConfigChanged?(): Promise<void>;
 }
 
 export interface ObsToolModule {

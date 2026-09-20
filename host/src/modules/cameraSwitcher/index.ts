@@ -128,6 +128,12 @@ export const cameraSwitcherModule: ObsToolModule = {
       async stop(): Promise<void> {
         // No per-module teardown needed — the host closes the shared OBS/EventSub connections.
       },
+      async onConfigChanged(): Promise<void> {
+        const stored = ctx.config.read() as Partial<RewardsFile>;
+        rewardsFile.auto = { ...DEFAULT_AUTO_SETTINGS, ...stored.auto };
+        rewardsFile.transition = { ...DEFAULT_TRANSITION_SETTINGS, ...stored.transition };
+        await resyncRewards();
+      },
     };
   },
 };

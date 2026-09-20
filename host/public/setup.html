@@ -26,8 +26,13 @@
     padding: 24px;
   }
 
-  h1 { font-size: 18px; font-weight: 600; margin: 0 0 16px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; }
   h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  h3 { font-size: 12px; font-weight: 600; margin: 16px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .top-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; max-width: 720px; }
+  a.nav-link { color: var(--accent); text-decoration: none; font-size: 13px; }
+  a.nav-link:hover { text-decoration: underline; }
 
   .panel {
     background: var(--panel);
@@ -69,7 +74,7 @@
   button.primary { background: var(--accent); border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  input[type="text"] {
+  input[type="text"], input[type="number"] {
     width: 100%;
     background: #0f1115;
     border: 1px solid var(--border);
@@ -79,12 +84,35 @@
     font: inherit;
   }
 
+  input[type="color"] {
+    width: 40px;
+    height: 30px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; flex-wrap: wrap; gap: 8px; }
 
   .field-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
   .field { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
   .field.grow { flex: 1; }
   .field label { font-size: 12px; color: var(--muted); }
+
+  .scene-checklist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .scene-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: #1f232c;
+  }
+
+  #autoPreview { font-size: 12px; color: var(--muted); }
 
   .save-status { font-size: 13px; color: var(--muted); }
   p.hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
@@ -103,7 +131,10 @@
 </style>
 </head>
 <body>
-  <h1>obs-tools host setup</h1>
+  <div class="top-row">
+    <h1>obs-tools host setup</h1>
+    <a class="nav-link" href="/">&larr; Back to controller</a>
+  </div>
 
   <div class="panel">
     <h2>OBS connection</h2>
@@ -145,6 +176,86 @@
     <div id="deviceCodeBox" class="device-code-box" hidden>
       <p class="hint" style="margin: 0 0 6px;">Go to <a id="deviceCodeLink" href="#" target="_blank" style="color: var(--accent);"></a> and enter this code:</p>
       <div id="deviceCodeText" class="device-code-text"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Editing rewards</h2>
+    <p class="hint">One channel-points reward is created per included OBS scene automatically.</p>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="autoCost">Cost per camera</label>
+        <input type="number" min="1" id="autoCost">
+      </div>
+      <div class="field">
+        <label for="autoCooldown">Cooldown (s)</label>
+        <input type="number" min="0" id="autoCooldown">
+      </div>
+      <div class="field">
+        <label for="autoColor">Color</label>
+        <input type="color" id="autoColor">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="autoTitleTemplate">Reward title ({scene} is replaced with the scene name)</label>
+        <input type="text" id="autoTitleTemplate" placeholder="Switch to {scene}">
+      </div>
+      <div class="field grow">
+        <label for="autoPromptTemplate">Reward prompt</label>
+        <input type="text" id="autoPromptTemplate" placeholder="Switch the stream camera to {scene}">
+      </div>
+    </div>
+
+    <h3>Scenes to include</h3>
+    <div class="scene-checklist" id="sceneChecklist"></div>
+
+    <div class="toolbar">
+      <span id="autoPreview"></span>
+      <div>
+        <button id="autoSaveBtn" class="primary">Save</button>
+        <span id="autoSaveStatus" class="save-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Random transition reward</h2>
+    <p class="hint">A single extra reward that switches to a random included camera using a random OBS scene transition. Needs at least 2 included scenes above to appear on Twitch.</p>
+
+    <div class="field-row">
+      <label class="checkbox-label"><input type="checkbox" id="transitionEnabled"> Enabled</label>
+      <div class="field">
+        <label for="transitionCost">Cost</label>
+        <input type="number" min="1" id="transitionCost">
+      </div>
+      <div class="field">
+        <label for="transitionCooldown">Cooldown (s)</label>
+        <input type="number" min="0" id="transitionCooldown">
+      </div>
+      <div class="field">
+        <label for="transitionColor">Color</label>
+        <input type="color" id="transitionColor">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="transitionTitle">Reward title</label>
+        <input type="text" id="transitionTitle" placeholder="Random Transition Cam Switch">
+      </div>
+      <div class="field grow">
+        <label for="transitionPrompt">Reward prompt</label>
+        <input type="text" id="transitionPrompt" placeholder="Switch camera using a random OBS transition">
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <span></span>
+      <div>
+        <button id="transitionSaveBtn" class="primary">Save</button>
+        <span id="transitionSaveStatus" class="save-status"></span>
+      </div>
     </div>
   </div>
 
@@ -207,6 +318,25 @@
   const deviceCodeLink = document.getElementById("deviceCodeLink");
   const deviceCodeText = document.getElementById("deviceCodeText");
 
+  const autoCost = document.getElementById("autoCost");
+  const autoCooldown = document.getElementById("autoCooldown");
+  const autoColor = document.getElementById("autoColor");
+  const autoTitleTemplate = document.getElementById("autoTitleTemplate");
+  const autoPromptTemplate = document.getElementById("autoPromptTemplate");
+  const sceneChecklist = document.getElementById("sceneChecklist");
+  const autoSaveBtn = document.getElementById("autoSaveBtn");
+  const autoSaveStatus = document.getElementById("autoSaveStatus");
+  const autoPreview = document.getElementById("autoPreview");
+
+  const transitionEnabled = document.getElementById("transitionEnabled");
+  const transitionCost = document.getElementById("transitionCost");
+  const transitionCooldown = document.getElementById("transitionCooldown");
+  const transitionColor = document.getElementById("transitionColor");
+  const transitionTitle = document.getElementById("transitionTitle");
+  const transitionPrompt = document.getElementById("transitionPrompt");
+  const transitionSaveBtn = document.getElementById("transitionSaveBtn");
+  const transitionSaveStatus = document.getElementById("transitionSaveStatus");
+
   const discordDot = document.getElementById("discordDot");
   const discordLabel = document.getElementById("discordLabel");
   const discordTokenInput = document.getElementById("discordTokenInput");
@@ -220,6 +350,108 @@
   const discordNotifySaveStatus = document.getElementById("discordNotifySaveStatus");
   const discordNotifyTestBtn = document.getElementById("discordNotifyTestBtn");
   const discordNotifyTestStatus = document.getElementById("discordNotifyTestStatus");
+
+  let obsScenes = [];
+  // True whenever a form has unsaved local edits — while true, an incoming
+  // cameraSwitcherConfig broadcast (from this save or an unrelated one
+  // elsewhere, e.g. the other form saving) skips re-filling that form, so
+  // it can't silently overwrite/revert what the user hasn't saved yet.
+  let autoFormDirty = false;
+  let transitionFormDirty = false;
+
+  function renderSceneChecklist(excludedScenes) {
+    const excluded = new Set(excludedScenes);
+    sceneChecklist.innerHTML = "";
+    if (obsScenes.length === 0) {
+      sceneChecklist.innerHTML = '<span style="color: var(--muted); font-size: 13px;">No OBS scenes detected yet.</span>';
+      return;
+    }
+    for (const scene of obsScenes) {
+      const label = document.createElement("label");
+      label.className = "scene-chip";
+      label.innerHTML = `<input type="checkbox" ${excluded.has(scene) ? "" : "checked"}> ${scene}`;
+      label.querySelector("input").addEventListener("change", () => {
+        autoFormDirty = true;
+        updateAutoPreview();
+      });
+      label.dataset.scene = scene;
+      sceneChecklist.appendChild(label);
+    }
+  }
+
+  function collectExcludedScenes() {
+    const excluded = [];
+    for (const chip of sceneChecklist.querySelectorAll(".scene-chip")) {
+      if (!chip.querySelector("input").checked) excluded.push(chip.dataset.scene);
+    }
+    return excluded;
+  }
+
+  function collectAutoSettings() {
+    return {
+      cost: Number(autoCost.value) || 1,
+      globalCooldownSeconds: Number(autoCooldown.value) || 0,
+      backgroundColor: autoColor.value,
+      titleTemplate: autoTitleTemplate.value || "Switch to {scene}",
+      promptTemplate: autoPromptTemplate.value || "Switch the stream camera to {scene}",
+      excludedScenes: collectExcludedScenes(),
+    };
+  }
+
+  function fillAutoForm(auto) {
+    autoCost.value = auto.cost;
+    autoCooldown.value = auto.globalCooldownSeconds;
+    autoColor.value = auto.backgroundColor;
+    autoTitleTemplate.value = auto.titleTemplate;
+    autoPromptTemplate.value = auto.promptTemplate;
+  }
+
+  function updateAutoPreview() {
+    const settings = collectAutoSettings();
+    const excluded = new Set(settings.excludedScenes);
+    const included = obsScenes.filter((s) => !excluded.has(s));
+    if (included.length === 0) {
+      autoPreview.textContent = "No cameras will be created.";
+      return;
+    }
+    const titles = included.map((s) => settings.titleTemplate.replace("{scene}", s));
+    autoPreview.textContent = `${included.length} camera reward(s): ${titles.join(", ")}`;
+  }
+
+  function collectTransitionSettings() {
+    return {
+      enabled: transitionEnabled.checked,
+      cost: Number(transitionCost.value) || 1,
+      globalCooldownSeconds: Number(transitionCooldown.value) || 0,
+      backgroundColor: transitionColor.value,
+      title: transitionTitle.value || "Random Transition Cam Switch",
+      prompt: transitionPrompt.value || "Switch camera using a random OBS transition",
+    };
+  }
+
+  function fillTransitionForm(transition) {
+    transitionEnabled.checked = transition.enabled;
+    transitionCost.value = transition.cost;
+    transitionCooldown.value = transition.globalCooldownSeconds;
+    transitionColor.value = transition.backgroundColor;
+    transitionTitle.value = transition.title;
+    transitionPrompt.value = transition.prompt;
+  }
+
+  function applyCameraSwitcherConfig(cameraSwitcherConfig) {
+    applyAutoConfig(cameraSwitcherConfig.auto);
+    applyTransitionConfig(cameraSwitcherConfig.transition);
+  }
+
+  function applyAutoConfig(auto) {
+    fillAutoForm(auto);
+    renderSceneChecklist(auto.excludedScenes);
+    updateAutoPreview();
+  }
+
+  function applyTransitionConfig(transition) {
+    fillTransitionForm(transition);
+  }
 
   function applyStatus(status) {
     obsDot.classList.toggle("on", status.obsConnected);
@@ -281,16 +513,25 @@
       if (msg.type === "init") {
         applyStatus(msg.status);
         obsUrlInput.value = msg.obsUrl || "";
+        obsScenes = msg.obsScenes || [];
         applyTwitchConfig(msg.twitchConfig || {});
         applyDiscordNotifyConfig(msg.discordNotifyConfig || {});
+        applyCameraSwitcherConfig(msg.cameraSwitcherConfig || { auto: {}, transition: {} });
       } else if (msg.type === "status") {
         applyStatus(msg.status);
       } else if (msg.type === "obsConfig") {
         obsUrlInput.value = msg.url || "";
+      } else if (msg.type === "obsScenes") {
+        obsScenes = msg.scenes || [];
+        renderSceneChecklist(collectExcludedScenes());
+        updateAutoPreview();
       } else if (msg.type === "twitchConfig") {
         applyTwitchConfig(msg.twitchConfig || {});
       } else if (msg.type === "discordNotifyConfig") {
         applyDiscordNotifyConfig(msg.discordNotifyConfig || {});
+      } else if (msg.type === "cameraSwitcherConfig") {
+        if (!autoFormDirty) applyAutoConfig(msg.cameraSwitcherConfig.auto);
+        if (!transitionFormDirty) applyTransitionConfig(msg.cameraSwitcherConfig.transition);
       } else if (msg.type === "moduleTestResult" && msg.moduleId === "discord-notify") {
         discordNotifyTestBtn.disabled = false;
         discordNotifyTestStatus.textContent = msg.ok ? "✅ Sent" : `❌ ${msg.message}`;
@@ -327,6 +568,33 @@
     });
     twitchSaveStatus.textContent = "Saved";
     setTimeout(() => (twitchSaveStatus.textContent = ""), 2000);
+  });
+
+  for (const input of [autoCost, autoCooldown, autoColor, autoTitleTemplate, autoPromptTemplate]) {
+    input.addEventListener("input", () => {
+      autoFormDirty = true;
+      updateAutoPreview();
+    });
+  }
+
+  for (const input of [transitionEnabled, transitionCost, transitionCooldown, transitionColor, transitionTitle, transitionPrompt]) {
+    input.addEventListener("input", () => {
+      transitionFormDirty = true;
+    });
+  }
+
+  autoSaveBtn.addEventListener("click", () => {
+    send({ type: "saveAutoRewardSettings", settings: collectAutoSettings() });
+    autoFormDirty = false;
+    autoSaveStatus.textContent = "Saved";
+    setTimeout(() => (autoSaveStatus.textContent = ""), 2000);
+  });
+
+  transitionSaveBtn.addEventListener("click", () => {
+    send({ type: "saveTransitionRewardSettings", settings: collectTransitionSettings() });
+    transitionFormDirty = false;
+    transitionSaveStatus.textContent = "Saved";
+    setTimeout(() => (transitionSaveStatus.textContent = ""), 2000);
   });
 
   discordSaveBtn.addEventListener("click", () => {

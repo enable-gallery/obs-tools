@@ -19,6 +19,9 @@ export interface ChatController {
   registerChatCommand(name: string, handler: ChatCommandHandler): void;
   /** Registers a handler triggered by redeeming a specific channel-points reward. */
   registerRewardCommand(rewardId: string, handler: ChatCommandHandler): void;
+  /** While paused, every channel-points redemption is immediately refunded without invoking its handler. Doesn't affect typed chat commands. */
+  setPaused(paused: boolean): void;
+  isPaused(): boolean;
 }
 
 /** Scopes chat-controller itself needs, beyond whatever a consuming module requires for its own Twitch calls. */
@@ -36,6 +39,7 @@ export async function createChatController(twitch: TwitchContext, sessionLog: Se
 
   const chatCommands = new Map<string, ChatCommandHandler>();
   const rewardCommands = new Map<string, ChatCommandHandler>();
+  let paused = false;
 
   eventSub.subscribe(
     {
@@ -72,7 +76,9 @@ export async function createChatController(twitch: TwitchContext, sessionLog: Se
       const handler = rewardCommands.get(rewardId);
       if (!handler) return;
 
-      const result = await handler({ userName, source: "channelPoints", args: [], rewardId, rewardTitle });
+      const result: ChatCommandResult = paused
+        ? { ok: false, reason: "redemptions are paused" }
+        : await handler({ userName, source: "channelPoints", args: [], rewardId, rewardTitle });
 
       try {
         await rewardsClient.updateRedemptionStatus(
@@ -106,6 +112,12 @@ export async function createChatController(twitch: TwitchContext, sessionLog: Se
     },
     registerRewardCommand(rewardId: string, handler: ChatCommandHandler): void {
       rewardCommands.set(rewardId, handler);
+    },
+    setPaused(value: boolean): void {
+      paused = value;
+    },
+    isPaused(): boolean {
+      return paused;
     },
   };
 }

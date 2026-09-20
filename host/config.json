@@ -24,23 +24,7 @@
           "b source",
           "a source",
           "end c cam",
-          "c - a [tr]",
-          "c - a2 [br]",
-          "c - b/a2 [r]",
-          "c - b/a [r]",
-          "c - b [tr]",
-          "b- c [tr]",
-          "b- c/a2 [r]",
-          "b - c/a [r]",
-          "a - c [bl]",
-          "a - b/c [l]",
-          "a - b/c [r]",
-          "a - c [br]",
-          "dual c/b",
-          "dual a/c",
-          "c camera",
-          "game capture",
-          "starting soon inktober"
+          "starting soon"
         ]
       },
       "transition": {
