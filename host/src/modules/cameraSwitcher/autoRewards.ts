@@ -1,5 +1,4 @@
-import type { RewardConfig } from "./config.js";
-import type { AutoRewardSettings, TransitionRewardSettings } from "./configStore.js";
+import type { AutoRewardSettings, RewardConfig, TransitionRewardSettings } from "./types.js";
 
 export function deriveAutoRewards(sceneNames: string[], settings: AutoRewardSettings): RewardConfig[] {
   const excluded = new Set(settings.excludedScenes);

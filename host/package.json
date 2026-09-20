@@ -1,13 +1,12 @@
 {
-  "name": "obs-chat-controller",
+  "name": "host",
   "version": "1.0.0",
-  "description": "Twitch chat-controlled OBS camera switcher",
+  "description": "Shared host process: one OBS/Twitch connection, loads feature modules",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "dashboard:demo": "tsx src/devDashboardDemo.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
@@ -15,7 +14,8 @@
     "@obs-tools/obs-client": "*",
     "@obs-tools/session-log": "*",
     "@obs-tools/twitch-auth": "*",
-    "@obs-tools/twitch-rewards": "*",
+    "@obs-tools/twitch-eventsub": "*",
+    "discord.js": "^14.0.0",
     "dotenv": "^16.4.5",
     "ws": "^8.18.0"
   },

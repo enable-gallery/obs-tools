@@ -1,0 +1,21 @@
+{
+  "name": "@obs-tools/twitch-eventsub",
+  "version": "1.0.0",
+  "description": "Generic, multi-topic Twitch EventSub-over-WebSocket client",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@obs-tools/twitch-auth": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2"
+  }
+}

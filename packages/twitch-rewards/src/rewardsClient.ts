@@ -1,4 +1,4 @@
-import { TwitchAuth, TwitchHelixClient } from "@obs-tools/twitch-auth";
+import { TwitchAuth, TwitchHelixClient, getBroadcasterId } from "@obs-tools/twitch-auth";
 
 export interface TwitchRewardInput {
   title: string;
@@ -26,11 +26,7 @@ export class TwitchRewardsClient {
   }
 
   async getBroadcasterId(login: string): Promise<string> {
-    const res = await this.helix.call(`/users?login=${encodeURIComponent(login)}`);
-    const data = (await res.json()) as { data: { id: string }[] };
-    const user = data.data[0];
-    if (!user) throw new Error(`No Twitch user found for channel "${login}"`);
-    return user.id;
+    return getBroadcasterId(this.helix, login);
   }
 
   async listManagedRewards(broadcasterId: string): Promise<TwitchReward[]> {

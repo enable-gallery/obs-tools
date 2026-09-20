@@ -1,9 +1,12 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = path.join(__dirname, "..", "config.json");
+export interface RewardConfig {
+  title: string;
+  prompt?: string;
+  cost: number;
+  kind: "scene" | "transition";
+  sceneName?: string;
+  globalCooldownSeconds?: number;
+  backgroundColor?: string;
+}
 
 export interface AutoRewardSettings {
   cost: number;
@@ -44,16 +47,4 @@ export const DEFAULT_TRANSITION_SETTINGS: TransitionRewardSettings = {
 export interface RewardsFile {
   auto: AutoRewardSettings;
   transition: TransitionRewardSettings;
-}
-
-export function readRewardsFile(): RewardsFile {
-  const parsed = JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as Partial<RewardsFile>;
-  return {
-    auto: { ...DEFAULT_AUTO_SETTINGS, ...parsed.auto },
-    transition: { ...DEFAULT_TRANSITION_SETTINGS, ...parsed.transition },
-  };
-}
-
-export function writeRewardsFile(data: RewardsFile): void {
-  writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2) + "\n");
 }

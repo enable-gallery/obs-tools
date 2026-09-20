@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Setup — obs-tools host</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e37;
+    --text: #e6e8eb;
+    --muted: #8b93a1;
+    --accent: #9147ff;
+    --green: #3fb950;
+    --red: #f85149;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 16px; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+    max-width: 720px;
+  }
+
+  .status-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #1f232c;
+    border: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+  .dot.on { background: var(--green); }
+  .dot.pending { background: #d29922; }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #1f232c;
+    color: var(--text);
+    padding: 10px 14px;
+  }
+
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  input[type="text"] {
+    width: 100%;
+    background: #0f1115;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 8px;
+    font: inherit;
+  }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; flex-wrap: wrap; gap: 8px; }
+
+  .field-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+  .field.grow { flex: 1; }
+  .field label { font-size: 12px; color: var(--muted); }
+
+  .save-status { font-size: 13px; color: var(--muted); }
+  p.hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+  .checkbox-label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .checkbox-label input { width: auto; }
+
+  .device-code-box {
+    margin-top: 12px;
+    padding: 12px;
+    background: #0f1115;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+  }
+  .device-code-text { font-size: 24px; font-weight: 700; letter-spacing: 0.08em; }
+</style>
+</head>
+<body>
+  <h1>obs-tools host setup</h1>
+
+  <div class="panel">
+    <h2>OBS connection</h2>
+    <div class="status-row">
+      <span class="pill"><span id="obsDot" class="dot"></span><span id="obsLabel">Checking...</span></span>
+      <label class="checkbox-label"><input type="checkbox" id="obsEnabledCheckbox"> Test / keep connected</label>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="obsUrlInput">WebSocket URL</label>
+        <input type="text" id="obsUrlInput" placeholder="ws://127.0.0.1:4455">
+      </div>
+      <div class="field">
+        <label for="obsPasswordInput">Password</label>
+        <input type="text" id="obsPasswordInput" placeholder="leave blank to keep current password">
+      </div>
+      <button id="obsSaveBtn" class="primary">Save &amp; connect</button>
+      <span id="obsSaveStatus" class="save-status"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Twitch connection</h2>
+    <div class="status-row">
+      <span class="pill"><span id="authDot" class="dot"></span><span id="authLabel">Checking...</span></span>
+      <button id="connectBtn">Connect to Twitch</button>
+      <label class="checkbox-label"><input type="checkbox" id="twitchEnabledCheckbox"> Test / keep connected</label>
+    </div>
+    <p class="hint">Create an app at <a href="https://dev.twitch.tv/console" target="_blank" style="color: var(--accent);">dev.twitch.tv/console</a> and paste its Client ID below — no client secret or redirect URI needed. Your channel is detected automatically from whichever account you authorize as.</p>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="twitchClientIdInput">Client ID</label>
+        <input type="text" id="twitchClientIdInput" placeholder="your_client_id">
+      </div>
+      <button id="twitchSaveBtn" class="primary">Save</button>
+      <span id="twitchSaveStatus" class="save-status"></span>
+    </div>
+
+    <div id="deviceCodeBox" class="device-code-box" hidden>
+      <p class="hint" style="margin: 0 0 6px;">Go to <a id="deviceCodeLink" href="#" target="_blank" style="color: var(--accent);"></a> and enter this code:</p>
+      <div id="deviceCodeText" class="device-code-text"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Discord connection</h2>
+    <div class="status-row">
+      <span class="pill"><span id="discordDot" class="dot"></span><span id="discordLabel">Checking...</span></span>
+      <label class="checkbox-label"><input type="checkbox" id="discordEnabledCheckbox"> Test / keep connected</label>
+    </div>
+    <p class="hint">From the <a href="https://discord.com/developers/applications" target="_blank" style="color: var(--accent);">Discord Developer Portal</a>: your app &gt; Bot &gt; Reset/Copy Token. Invite the bot to your server with the "Send Messages" permission.</p>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="discordTokenInput">Bot token</label>
+        <input type="text" id="discordTokenInput" placeholder="leave blank to keep current token">
+      </div>
+      <button id="discordSaveBtn" class="primary">Save &amp; connect</button>
+      <span id="discordSaveStatus" class="save-status"></span>
+    </div>
+
+    <h2 style="margin-top: 20px;">Going-live post</h2>
+    <p class="hint">Right-click the target channel in Discord (with Developer Mode on, under User Settings &gt; Advanced) and choose "Copy Channel ID".</p>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="discordChannelIdInput">Channel ID</label>
+        <input type="text" id="discordChannelIdInput" placeholder="123456789012345678">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field grow">
+        <label for="discordMessageTemplateInput">Message template</label>
+        <input type="text" id="discordMessageTemplateInput" placeholder="🔴 **{channel}** is live: {title} — playing {game}\n{url}">
+      </div>
+      <button id="discordNotifySaveBtn" class="primary">Save</button>
+      <span id="discordNotifySaveStatus" class="save-status"></span>
+    </div>
+    <p class="hint">Placeholders: {channel}, {title}, {game}, {url}.</p>
+    <div class="toolbar">
+      <button id="discordNotifyTestBtn">Send test post</button>
+      <span id="discordNotifyTestStatus" class="save-status"></span>
+    </div>
+  </div>
+
+<script>
+  const obsDot = document.getElementById("obsDot");
+  const obsLabel = document.getElementById("obsLabel");
+  const obsUrlInput = document.getElementById("obsUrlInput");
+  const obsPasswordInput = document.getElementById("obsPasswordInput");
+  const obsSaveBtn = document.getElementById("obsSaveBtn");
+  const obsSaveStatus = document.getElementById("obsSaveStatus");
+  const obsEnabledCheckbox = document.getElementById("obsEnabledCheckbox");
+
+  const authDot = document.getElementById("authDot");
+  const authLabel = document.getElementById("authLabel");
+  const connectBtn = document.getElementById("connectBtn");
+  const twitchClientIdInput = document.getElementById("twitchClientIdInput");
+  const twitchSaveBtn = document.getElementById("twitchSaveBtn");
+  const twitchSaveStatus = document.getElementById("twitchSaveStatus");
+  const twitchEnabledCheckbox = document.getElementById("twitchEnabledCheckbox");
+  const deviceCodeBox = document.getElementById("deviceCodeBox");
+  const deviceCodeLink = document.getElementById("deviceCodeLink");
+  const deviceCodeText = document.getElementById("deviceCodeText");
+
+  const discordDot = document.getElementById("discordDot");
+  const discordLabel = document.getElementById("discordLabel");
+  const discordTokenInput = document.getElementById("discordTokenInput");
+  const discordSaveBtn = document.getElementById("discordSaveBtn");
+  const discordSaveStatus = document.getElementById("discordSaveStatus");
+  const discordEnabledCheckbox = document.getElementById("discordEnabledCheckbox");
+
+  const discordChannelIdInput = document.getElementById("discordChannelIdInput");
+  const discordMessageTemplateInput = document.getElementById("discordMessageTemplateInput");
+  const discordNotifySaveBtn = document.getElementById("discordNotifySaveBtn");
+  const discordNotifySaveStatus = document.getElementById("discordNotifySaveStatus");
+  const discordNotifyTestBtn = document.getElementById("discordNotifyTestBtn");
+  const discordNotifyTestStatus = document.getElementById("discordNotifyTestStatus");
+
+  function applyStatus(status) {
+    obsDot.classList.toggle("on", status.obsConnected);
+    obsLabel.textContent = status.obsConnected ? "Connected" : "Not connected";
+    obsEnabledCheckbox.checked = Boolean(status.obsEnabled);
+
+    if (status.twitchAuthorized) {
+      authDot.classList.remove("pending");
+      authDot.classList.toggle("on", status.twitchConnected);
+      authLabel.textContent = status.twitchConnected ? "Connected" : "Authorized, reconnecting...";
+      connectBtn.disabled = true;
+      connectBtn.textContent = "Connected to Twitch";
+      deviceCodeBox.hidden = true;
+    } else if (!status.twitchConfigured) {
+      authDot.classList.remove("on", "pending");
+      authLabel.textContent = "Enter credentials below";
+      connectBtn.disabled = true;
+      connectBtn.textContent = "Connect to Twitch";
+    } else {
+      authDot.classList.remove("on");
+      authLabel.textContent = "Not connected";
+      connectBtn.disabled = false;
+      connectBtn.textContent = "Connect to Twitch";
+    }
+
+    twitchEnabledCheckbox.checked = Boolean(status.twitchEnabled);
+
+    discordDot.classList.toggle("on", status.discordConnected);
+    discordLabel.textContent = status.discordConnected
+      ? "Connected"
+      : status.discordConfigured
+        ? "Not connected"
+        : "Enter a bot token below";
+    discordEnabledCheckbox.checked = Boolean(status.discordEnabled);
+  }
+
+  function applyTwitchConfig(twitchConfig) {
+    twitchClientIdInput.value = twitchConfig.clientId || "";
+  }
+
+  function applyDiscordNotifyConfig(discordNotifyConfig) {
+    discordChannelIdInput.value = discordNotifyConfig.channelId || "";
+    discordMessageTemplateInput.value = discordNotifyConfig.messageTemplate || "";
+  }
+
+  function showDeviceCode({ verificationUri, userCode }) {
+    deviceCodeLink.href = verificationUri;
+    deviceCodeLink.textContent = verificationUri;
+    deviceCodeText.textContent = userCode;
+    deviceCodeBox.hidden = false;
+  }
+
+  let ws;
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}`);
+
+    ws.addEventListener("message", (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "init") {
+        applyStatus(msg.status);
+        obsUrlInput.value = msg.obsUrl || "";
+        applyTwitchConfig(msg.twitchConfig || {});
+        applyDiscordNotifyConfig(msg.discordNotifyConfig || {});
+      } else if (msg.type === "status") {
+        applyStatus(msg.status);
+      } else if (msg.type === "obsConfig") {
+        obsUrlInput.value = msg.url || "";
+      } else if (msg.type === "twitchConfig") {
+        applyTwitchConfig(msg.twitchConfig || {});
+      } else if (msg.type === "discordNotifyConfig") {
+        applyDiscordNotifyConfig(msg.discordNotifyConfig || {});
+      } else if (msg.type === "moduleTestResult" && msg.moduleId === "discord-notify") {
+        discordNotifyTestBtn.disabled = false;
+        discordNotifyTestStatus.textContent = msg.ok ? "✅ Sent" : `❌ ${msg.message}`;
+        discordNotifyTestStatus.style.color = msg.ok ? "var(--green)" : "var(--red)";
+      } else if (msg.type === "twitchDeviceCode") {
+        showDeviceCode(msg);
+      }
+    });
+
+    ws.addEventListener("close", () => setTimeout(connect, 2000));
+  }
+
+  function send(message) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+  }
+
+  connectBtn.addEventListener("click", () => send({ type: "connectTwitch" }));
+
+  obsSaveBtn.addEventListener("click", () => {
+    send({
+      type: "saveObsConfig",
+      url: obsUrlInput.value.trim(),
+      password: obsPasswordInput.value,
+    });
+    obsPasswordInput.value = "";
+    obsSaveStatus.textContent = "Saving...";
+    setTimeout(() => (obsSaveStatus.textContent = ""), 2000);
+  });
+
+  twitchSaveBtn.addEventListener("click", () => {
+    send({
+      type: "saveTwitchConfig",
+      clientId: twitchClientIdInput.value.trim(),
+    });
+    twitchSaveStatus.textContent = "Saved";
+    setTimeout(() => (twitchSaveStatus.textContent = ""), 2000);
+  });
+
+  discordSaveBtn.addEventListener("click", () => {
+    send({
+      type: "saveDiscordConfig",
+      botToken: discordTokenInput.value,
+    });
+    discordTokenInput.value = "";
+    discordSaveStatus.textContent = "Saving...";
+    setTimeout(() => (discordSaveStatus.textContent = ""), 2000);
+  });
+
+  discordNotifySaveBtn.addEventListener("click", () => {
+    send({
+      type: "saveDiscordNotifyConfig",
+      channelId: discordChannelIdInput.value.trim(),
+      messageTemplate: discordMessageTemplateInput.value,
+    });
+    discordNotifySaveStatus.textContent = "Saved";
+    setTimeout(() => (discordNotifySaveStatus.textContent = ""), 2000);
+  });
+
+  discordNotifyTestBtn.addEventListener("click", () => {
+    discordNotifyTestBtn.disabled = true;
+    discordNotifyTestStatus.style.color = "";
+    discordNotifyTestStatus.textContent = "Sending...";
+    send({ type: "runModuleTest", moduleId: "discord-notify" });
+  });
+
+  obsEnabledCheckbox.addEventListener("change", () => {
+    send({ type: "setConnectorEnabled", connector: "obs", enabled: obsEnabledCheckbox.checked });
+  });
+  twitchEnabledCheckbox.addEventListener("change", () => {
+    send({ type: "setConnectorEnabled", connector: "twitch", enabled: twitchEnabledCheckbox.checked });
+  });
+  discordEnabledCheckbox.addEventListener("change", () => {
+    send({ type: "setConnectorEnabled", connector: "discord", enabled: discordEnabledCheckbox.checked });
+  });
+
+  connect();
+</script>
+</body>
+</html>

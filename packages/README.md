@@ -1,12 +1,12 @@
 # packages
 
-Shared code used by every tool in this repo (`obs-chat-controller` today,
-more later). These are plain npm workspace packages — private, not
-published — linked via the root `package.json`'s `workspaces` field and
-referenced as `"@obs-tools/<name>": "*"` from each tool's `package.json`.
+Shared code used by `host` and its modules. These are plain npm workspace
+packages — private, not published — linked via the root `package.json`'s
+`workspaces` field and referenced as `"@obs-tools/<name>": "*"` from
+`host/package.json`.
 
-If a new tool needs to talk to OBS or manage Twitch channel-point rewards,
-start here instead of reimplementing it in the tool itself.
+If a new module needs to talk to OBS or Twitch, start here instead of
+reimplementing it in the module itself.
 
 ## `@obs-tools/twitch-auth`
 
@@ -37,9 +37,19 @@ redemptions, built on `twitch-auth`.
   updates changed, optionally deletes removed). Generic over the reward
   type, so it hands back a `Map<rewardId, YourRewardType>` for redemption
   lookups.
-- `EventSubClient` — WebSocket client for Twitch EventSub, currently wired
-  for `channel.channel_points_custom_reward_redemption.add`. Handles
-  session welcome/reconnect and auto-reconnects on drop.
+- `EventSubClient` — the original single-topic (redemptions-only) EventSub
+  WebSocket client. Superseded by `@obs-tools/twitch-eventsub` for new
+  code; kept here only until nothing references it.
+
+## `@obs-tools/twitch-eventsub`
+
+`TwitchEventSubClient` — generic, multi-topic Twitch EventSub-over-WebSocket
+client: a `subscribe({type, version, condition}, handler)` registry instead
+of one hardcoded subscription type, so multiple independent consumers (chat
+messages, channel-points redemptions, stream online/offline, …) share one
+WebSocket connection. Handles session welcome/reconnect (subscriptions
+carry over automatically across a Twitch-initiated reconnect) and
+auto-reconnects on drop.
 
 ## `@obs-tools/obs-client`
 
@@ -48,8 +58,9 @@ connect/reconnect, current scene tracking, scene list + transition list,
 switching scenes (with or without a specific transition), and
 connection/scene-change/scene-list-change callbacks. Note that OBS doesn't
 emit a change event when you switch to a different Scene Collection
-entirely — callers need their own manual "refresh" path for that (see
-`obs-chat-controller`'s Setup page for the pattern).
+entirely — the automatic `onSceneListChange`-triggered resync (see
+`camera-switcher`) won't catch that case; there's no manual "refresh"
+path wired up for it yet since `host` doesn't have a dashboard.
 
 ## `@obs-tools/session-log`
 
